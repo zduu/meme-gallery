@@ -298,6 +298,10 @@ body {
     .masonry-grid.size-large {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     }
+
+    .gallery-container {
+        padding-top: 140px;  /* 稍微增加以适配更小屏幕 */
+    }
 }
 
 /* ========== 表情包卡片 ========== */
@@ -1142,7 +1146,7 @@ body {
     }
 
     .gallery-container {
-        padding-top: 70px;
+        padding-top: 135px;  /* 60px header + 55px category tabs + 20px spacing */
     }
 
     .modal-content {

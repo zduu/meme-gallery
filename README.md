@@ -165,6 +165,15 @@ python3 -m http.server 8000
 ## 🐛 常见问题
 
 <details>
+<summary><b>Q: 移动端分类栏遮挡表情包？</b></summary>
+
+**A:** 已优化移动端布局间距：
+- 768px 以下设备：画廊顶部间距 135px
+- 480px 以下设备：画廊顶部间距 140px
+- 确保分类栏不会遮挡任何表情包内容
+</details>
+
+<details>
 <summary><b>Q: 手机上复制功能不正常？</b></summary>
 
 **A:** 已优化复制功能，支持多种复制方式：
