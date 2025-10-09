@@ -82,7 +82,7 @@ export async function onRequestPost(context) {
       id: Date.now() + index + Math.random(),
       url: img.url,
       name: img.name,
-      source: 'scan',
+      source: 'upload',  // 仓库图片归类为本地上传/仓库分类
       addedAt: new Date().toISOString(),
       github_path: img.path,
       github_sha: img.sha

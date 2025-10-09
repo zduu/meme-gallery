@@ -14,6 +14,8 @@ class MemeGallery {
         this.isAdmin = sessionStorage.getItem('isAdmin') === 'true';  // 管理员状态
         this.currentMemeForTags = null;  // 当前正在编辑标签的表情包
         this.allTags = new Set();  // 所有标签集合
+        this.pageSize = 50;  // 每页显示数量
+        this.currentPage = 1;  // 当前页码
         this.init();
     }
 
@@ -22,10 +24,54 @@ class MemeGallery {
         this.bindEvents();
         this.applyGridSize();
         this.updateAdminButtons();  // 更新管理员按钮显示状态
+        this.setupIntersectionObserver();  // 设置图片懒加载观察器
         this.render();
     }
 
+    // ========== 智能懒加载 ==========
+
+    setupIntersectionObserver() {
+        // 创建 Intersection Observer 用于智能懒加载
+        this.imageObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                        this.imageObserver.unobserve(img);
+                    }
+                }
+            });
+        }, {
+            rootMargin: '50px',  // 提前 50px 开始加载
+            threshold: 0.01
+        });
+    }
+
+    observeImages() {
+        // 观察所有带 data-src 的图片
+        document.querySelectorAll('img[data-src]').forEach(img => {
+            this.imageObserver.observe(img);
+        });
+    }
+
     // ========== 格式识别 ==========
+
+    // GitHub CDN 加速：将 raw.githubusercontent.com 转换为 jsDelivr CDN
+    convertToGitHubCDN(url) {
+        // 匹配 https://raw.githubusercontent.com/username/repo/branch/path
+        const rawGitHubPattern = /^https:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)\/(.+)$/;
+        const match = url.match(rawGitHubPattern);
+
+        if (match) {
+            const [, username, repo, branch, path] = match;
+            // 转换为 jsDelivr CDN: https://cdn.jsdelivr.net/gh/username/repo@branch/path
+            return `https://cdn.jsdelivr.net/gh/${username}/${repo}@${branch}/${path}`;
+        }
+
+        return url;
+    }
 
     extractImageUrl(input) {
         const trimmed = input.trim();
@@ -201,6 +247,7 @@ class MemeGallery {
     async searchMemes(keyword) {
         if (!keyword.trim()) {
             this.filteredMemes = [...this.memes];
+            this.currentPage = 1;  // 重置页码
             this.render();
             return;
         }
@@ -211,6 +258,7 @@ class MemeGallery {
 
             if (result.success) {
                 this.filteredMemes = result.data;
+                this.currentPage = 1;  // 重置页码
                 this.render();
             }
         } catch (error) {
@@ -472,8 +520,46 @@ class MemeGallery {
             return;
         }
 
-        gallery.innerHTML = displayMemes.map(meme => this.createMemeCard(meme)).join('');
+        // 分页：只显示当前页的数据
+        const startIndex = 0;
+        const endIndex = this.currentPage * this.pageSize;
+        const pagedMemes = displayMemes.slice(startIndex, endIndex);
+        const hasMore = endIndex < displayMemes.length;
+
+        // 渲染表情包卡片
+        gallery.innerHTML = pagedMemes.map(meme => this.createMemeCard(meme)).join('');
+
+        // 添加"加载更多"按钮
+        if (hasMore) {
+            gallery.innerHTML += `
+                <div class="load-more-container">
+                    <button id="loadMoreBtn" class="btn-load-more">
+                        加载更多 (${displayMemes.length - endIndex} 张)
+                    </button>
+                </div>
+            `;
+
+            // 绑定加载更多按钮事件
+            setTimeout(() => {
+                const loadMoreBtn = document.getElementById('loadMoreBtn');
+                if (loadMoreBtn) {
+                    loadMoreBtn.addEventListener('click', () => {
+                        this.currentPage++;
+                        this.render();
+                        // 滚动到新加载的内容
+                        window.scrollTo({
+                            top: document.body.scrollHeight - window.innerHeight - 200,
+                            behavior: 'smooth'
+                        });
+                    });
+                }
+            }, 0);
+        }
+
         this.bindCardEvents();
+
+        // 启动图片懒加载观察
+        setTimeout(() => this.observeImages(), 0);
     }
 
     updateCategoryCounts() {
@@ -488,6 +574,7 @@ class MemeGallery {
 
     setCategory(category) {
         this.currentCategory = category;
+        this.currentPage = 1;  // 重置页码
 
         // 更新标签激活状态
         document.querySelectorAll('.category-tab').forEach(tab => {
@@ -504,15 +591,20 @@ class MemeGallery {
             ? `<div class="meme-tags">${tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
             : '';
 
+        // 使用 CDN 加速 GitHub 图片
+        const imageUrl = this.convertToGitHubCDN(meme.url);
+
         return `
             <div class="meme-card">
                 <div class="meme-image-container">
+                    <!-- 骨架屏占位 -->
+                    <div class="image-skeleton"></div>
                     <img
-                        src="${this.escapeHtml(meme.url)}"
+                        data-src="${this.escapeHtml(imageUrl)}"
                         alt="${this.escapeHtml(meme.name)}"
                         class="meme-image"
-                        loading="lazy"
-                        onerror="this.className='meme-image error'; this.alt='图片加载失败'"
+                        onload="this.previousElementSibling.style.display='none'; this.classList.add('loaded')"
+                        onerror="this.previousElementSibling.style.display='none'; this.className='meme-image error'; this.alt='图片加载失败'"
                     >
                     <div class="meme-overlay">
                         <div class="meme-name">${this.escapeHtml(meme.name)}</div>
@@ -827,21 +919,49 @@ class MemeGallery {
         document.querySelectorAll('.copy-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const url = e.currentTarget.dataset.url;
+                let copySuccess = false;
+
                 try {
-                    await navigator.clipboard.writeText(url);
-                    const originalText = e.currentTarget.innerHTML;
-                    e.currentTarget.innerHTML = '✅';
-                    e.currentTarget.classList.add('copied');
+                    // 优先使用 Clipboard API
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(url);
+                        copySuccess = true;
+                    } else {
+                        // 降级方案：使用传统的 execCommand
+                        copySuccess = this.fallbackCopyText(url);
+                    }
 
-                    this.showToast('链接已复制到剪贴板', 'success');
+                    if (copySuccess) {
+                        const originalText = e.currentTarget.innerHTML;
+                        e.currentTarget.innerHTML = '✅';
+                        e.currentTarget.classList.add('copied');
 
-                    setTimeout(() => {
-                        e.currentTarget.innerHTML = originalText;
-                        e.currentTarget.classList.remove('copied');
-                    }, 2000);
+                        this.showToast('链接已复制到剪贴板', 'success');
+
+                        setTimeout(() => {
+                            e.currentTarget.innerHTML = originalText;
+                            e.currentTarget.classList.remove('copied');
+                        }, 2000);
+                    } else {
+                        throw new Error('复制失败');
+                    }
                 } catch (err) {
                     console.error('复制失败:', err);
-                    this.showToast('复制失败，请手动复制', 'error');
+                    // 尝试降级方案
+                    if (!copySuccess && this.fallbackCopyText(url)) {
+                        const originalText = e.currentTarget.innerHTML;
+                        e.currentTarget.innerHTML = '✅';
+                        e.currentTarget.classList.add('copied');
+
+                        this.showToast('链接已复制到剪贴板', 'success');
+
+                        setTimeout(() => {
+                            e.currentTarget.innerHTML = originalText;
+                            e.currentTarget.classList.remove('copied');
+                        }, 2000);
+                    } else {
+                        this.showToast('复制失败，请手动复制', 'error');
+                    }
                 }
             });
         });
@@ -865,6 +985,42 @@ class MemeGallery {
     }
 
     // ========== 工具函数 ==========
+
+    fallbackCopyText(text) {
+        // 降级复制方案：使用 textarea + execCommand
+        try {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+
+            // 避免在页面上显示
+            textArea.style.position = 'fixed';
+            textArea.style.top = '0';
+            textArea.style.left = '0';
+            textArea.style.width = '2em';
+            textArea.style.height = '2em';
+            textArea.style.padding = '0';
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.boxShadow = 'none';
+            textArea.style.background = 'transparent';
+            textArea.style.opacity = '0';
+
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            // 兼容 iOS
+            textArea.setSelectionRange(0, 99999);
+
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            return successful;
+        } catch (err) {
+            console.error('降级复制方案失败:', err);
+            return false;
+        }
+    }
 
     updateAdminButtons() {
         // 根据管理员状态显示/隐藏按钮
