@@ -1,0 +1,22 @@
+{
+  "name": "meme-gallery",
+  "version": "2.0.0",
+  "description": "表情包管理器 - 使用 Cloudflare Pages Functions + KV 存储",
+  "scripts": {
+    "dev": "wrangler pages dev . --kv MEME_GALLERY_KV",
+    "preview": "wrangler pages dev .",
+    "test": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "meme",
+    "gallery",
+    "cloudflare",
+    "pages",
+    "kv"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

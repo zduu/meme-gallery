@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Gallery - 表情包画廊</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 顶部工具栏 -->
+    <header class="header">
+        <div class="header-left">
+            <h1 class="logo">🎨 Meme Gallery</h1>
+        </div>
+        <div class="header-right">
+            <button id="searchToggle" class="icon-btn" title="搜索">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+            <button id="addToggle" class="icon-btn btn-primary" title="添加表情包">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </button>
+            <button id="sizeToggle" class="icon-btn" title="网格大小">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+            </button>
+            <button id="menuToggle" class="icon-btn" title="更多">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <circle cx="12" cy="5" r="1"></circle>
+                    <circle cx="12" cy="19" r="1"></circle>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- 搜索栏（默认隐藏） -->
+    <div id="searchBar" class="search-bar hidden">
+        <div class="search-container">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="搜索表情包名称或链接..."
+                autocomplete="off"
+            >
+            <button id="searchClose" class="search-close">✕</button>
+        </div>
+    </div>
+
+    <!-- 表情包画廊 -->
+    <main class="gallery-container">
+        <div id="gallery" class="masonry-grid">
+            <div class="empty-state">
+                <div class="empty-icon">🎨</div>
+                <p>还没有表情包</p>
+                <button class="btn-link" onclick="document.getElementById('addToggle').click()">
+                    点击右上角 + 添加第一个表情包
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- 添加表情包弹窗 -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>添加表情包</h2>
+                <button class="modal-close" id="addModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>图片链接</label>
+                    <textarea
+                        id="urlInput"
+                        placeholder="粘贴图片链接，支持三种格式：&#10;&#10;• 纯链接：https://example.com/image.gif&#10;• Markdown：![](https://example.com/image.gif)&#10;• HTML：<img src='https://example.com/image.gif'>"
+                        rows="5"
+                    ></textarea>
+                </div>
+                <div class="form-group">
+                    <label>名称（可选）</label>
+                    <input
+                        type="text"
+                        id="nameInput"
+                        placeholder="为表情包起个名字"
+                    >
+                </div>
+                <div id="addMessage" class="message"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="clearBtn" class="btn btn-secondary">清空</button>
+                <button id="addBtn" class="btn btn-primary">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 网格大小设置弹窗 -->
+    <div id="sizeModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>网格大小</h2>
+                <button class="modal-close" id="sizeModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="size-options">
+                    <button class="size-option" data-size="small">
+                        <div class="size-preview">
+                            <div class="preview-grid small">
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                            </div>
+                        </div>
+                        <span>小 (150px)</span>
+                    </button>
+                    <button class="size-option active" data-size="medium">
+                        <div class="size-preview">
+                            <div class="preview-grid medium">
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                            </div>
+                        </div>
+                        <span>中 (200px)</span>
+                    </button>
+                    <button class="size-option" data-size="large">
+                        <div class="size-preview">
+                            <div class="preview-grid large">
+                                <div class="preview-item"></div>
+                                <div class="preview-item"></div>
+                            </div>
+                        </div>
+                        <span>大 (300px)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 菜单弹窗 -->
+    <div id="menuModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>数据管理</h2>
+                <button class="modal-close" id="menuModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="menu-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">表情包总数</span>
+                        <span class="stat-value" id="totalCount">0</span>
+                    </div>
+                </div>
+                <div class="menu-actions">
+                    <button id="exportBtn" class="menu-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>导出数据</span>
+                    </button>
+                    <button id="importBtn" class="menu-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>导入数据</span>
+                    </button>
+                    <button id="clearAllBtn" class="menu-btn menu-btn-danger">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>清空所有</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="importFile" accept=".json" style="display: none;">
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
