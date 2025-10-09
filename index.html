@@ -230,7 +230,14 @@
                         </svg>
                         <span>导出数据</span>
                     </button>
-                    <!-- 导入和清空按钮默认隐藏，需要通过 URL 参数显示 -->
+                    <button id="scanRepoBtn" class="menu-btn hidden">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <span>扫描仓库图片</span>
+                    </button>
+                    <!-- 导入和清空按钮默认隐藏，需要管理员权限 -->
                     <button id="importBtn" class="menu-btn hidden">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -247,6 +254,68 @@
                         <span>清空所有</span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理员验证弹窗 -->
+    <div id="adminModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>🔐 管理员验证</h2>
+                <button class="modal-close" id="adminModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>请输入管理密钥</label>
+                    <div class="admin-input-wrapper">
+                        <input
+                            type="password"
+                            id="adminKeyInput"
+                            placeholder="输入 ADMIN_KEY"
+                            autocomplete="off"
+                        >
+                        <button type="button" class="toggle-password" id="toggleAdminPassword" title="显示/隐藏密码">
+                            👁️
+                        </button>
+                    </div>
+                </div>
+                <div id="adminMessage" class="message"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelAdminBtn" class="btn btn-secondary">取消</button>
+                <button id="verifyAdminBtn" class="btn btn-primary">验证</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标签管理弹窗 -->
+    <div id="tagsModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>🏷️ 管理标签</h2>
+                <button class="modal-close" id="tagsModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="tags-meme-info">
+                    <span class="tags-meme-label">表情包：</span>
+                    <span class="tags-meme-name" id="tagsMemeNameDisplay"></span>
+                </div>
+                <div class="form-group">
+                    <label>标签</label>
+                    <input
+                        type="text"
+                        id="tagsInput"
+                        placeholder="输入标签，用逗号或空格分隔，如：搞笑 可爱 猫咪"
+                        autocomplete="off"
+                    >
+                    <div class="tags-hint">💡 小提示：多个标签可用逗号、空格分隔</div>
+                </div>
+                <div id="tagsMessage" class="message"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelTagsBtn" class="btn btn-secondary">取消</button>
+                <button id="saveTagsBtn" class="btn btn-primary">保存</button>
             </div>
         </div>
     </div>

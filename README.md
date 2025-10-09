@@ -7,7 +7,9 @@
 ### 📥 智能添加
 - **链接识别**：自动识别三种格式（纯链接、Markdown、HTML）
 - **本地上传**：拖拽或选择图片，上传到 GitHub 作为图床
+- **仓库扫描**：自动检索 GitHub 仓库中的所有图片文件（需管理权限）
 - **去重检测**：自动识别重复链接
+- **格式支持**：JPG、PNG、GIF、WebP
 
 ### 🎨 强大管理
 - **分类查看**：全部 / 链接添加 / 本地上传
@@ -18,8 +20,9 @@
 ### ☁️ 数据安全
 - **云端存储**：Cloudflare KV 持久化存储
 - **跨设备同步**：导出/导入 JSON 数据
-- **管理保护**：管理密钥保护敏感操作
+- **管理保护**：默认密钥 `meme-gallery-2024`，可自定义
 - **智能导出**：自动将上传图片转换为链接格式
+- **频率限制**：上传间隔 3 秒，防止 API 滥用
 
 ### 📱 用户体验
 - **响应式设计**：完美适配桌面和移动端
@@ -58,16 +61,16 @@ git push -u origin main
 
 **可选配置（Settings → Environment variables）：**
 
-| 变量名 | 用途 | 示例值 |
-|--------|------|--------|
-| `GITHUB_TOKEN` | GitHub 图床上传 | `ghp_xxxxxxxxxxxx` |
-| `GITHUB_REPO` | GitHub 仓库 | `username/repo-name` |
-| `GITHUB_BRANCH` | GitHub 分支 | `main` (默认) |
-| `ADMIN_KEY` | 管理功能保护 | `my-secret-2024` |
+| 变量名 | 用途 | 示例值 | 默认值 |
+|--------|------|--------|--------|
+| `GITHUB_TOKEN` | GitHub 图床上传 | `ghp_xxxxxxxxxxxx` | - |
+| `GITHUB_REPO` | GitHub 仓库 | `username/repo-name` | - |
+| `GITHUB_BRANCH` | GitHub 分支 | `main` | `main` |
+| `ADMIN_KEY` | 管理功能保护 | `my-secret-2024` | `meme-gallery-2024` |
 
 **配置说明：**
 - **GITHUB_TOKEN**：访问 [GitHub Settings](https://github.com/settings/tokens) 生成，需要 `repo` 权限
-- **ADMIN_KEY**：自定义强密码，保护导入和清空功能
+- **ADMIN_KEY**：自定义强密码，默认为 `meme-gallery-2024`，**强烈建议修改**
 
 #### 4. 完成
 
@@ -86,8 +89,9 @@ HTML：<img src="https://example.com/image.gif">
 
 **方式二：本地上传**
 1. 点击 ➕ → 📤 上传图片
-2. 拖拽或选择图片（JPG/PNG/GIF/WEBP，最大 10MB）
+2. 拖拽或选择图片（JPG/PNG/GIF/WebP，最大 10MB）
 3. 输入名称（可选）→ 添加
+4. **注意**：上传间隔最少 3 秒，防止 API 频率限制
 
 ### 分类查看
 
@@ -102,10 +106,17 @@ HTML：<img src="https://example.com/image.gif">
 - 自动将上传图片转换为链接格式
 - 便于跨设备迁移
 
+**扫描仓库（需管理权限）**：
+1. 配置 GitHub 相关环境变量
+2. 验证管理员权限后，点击"扫描仓库图片"
+3. 自动检索仓库中所有图片文件（JPG、PNG、GIF、WebP）
+4. 自动去重，只添加新图片
+
 **导入/清空（需管理权限）**：
-1. 配置 `ADMIN_KEY` 环境变量
-2. 访问 `https://your-site.pages.dev/?key=你的密钥`
-3. 验证成功后显示管理按钮
+1. 在前端页面点击 5 次 "🎨 Meme Gallery" 标题
+2. 输入管理密钥进行验证（默认密钥：`meme-gallery-2024`）
+3. 验证成功后显示导入和清空按钮
+4. 管理权限在当前会话期间有效（刷新页面后需重新验证）
 
 ## 🧪 本地开发
 
@@ -135,11 +146,12 @@ python3 -m http.server 8000
 |------|------|------|------|
 | GET | `/api/memes` | 获取所有表情包 | 公开 |
 | POST | `/api/memes` | 添加表情包（链接） | 公开 |
-| POST | `/api/upload` | 上传图片到 GitHub | 公开 |
+| POST | `/api/upload` | 上传图片到 GitHub | 公开（3秒频率限制） |
 | DELETE | `/api/memes/:id` | 删除表情包 | 公开 |
 | GET | `/api/memes/search?q=关键词` | 搜索表情包 | 公开 |
 | GET | `/api/memes/export` | 导出数据 | 公开 |
 | POST | `/api/verify-key` | 验证管理密钥 | - |
+| POST | `/api/scan-repo` | 扫描仓库图片 | 需管理权限 |
 | POST | `/api/memes/import` | 导入数据 | 需管理权限 |
 | DELETE | `/api/memes/clear` | 清空所有 | 需管理权限 |
 
@@ -157,9 +169,11 @@ python3 -m http.server 8000
 <summary><b>Q: 为什么看不到导入和清空按钮？</b></summary>
 
 **A:** 这些功能需要管理权限：
-1. 配置环境变量 `ADMIN_KEY`
-2. 访问 `https://your-site.pages.dev/?key=你的密钥`
-3. 验证成功后按钮会显示
+1. 在前端页面点击 5 次 "🎨 Meme Gallery" 标题
+2. 在弹出的验证框中输入密钥（默认：`meme-gallery-2024`）
+3. 验证成功后导入、清空和扫描按钮会显示
+4. 管理权限在当前会话有效，刷新页面需重新验证
+5. 建议在 Cloudflare Pages 设置中配置自定义 `ADMIN_KEY`
 </details>
 
 <details>
@@ -180,11 +194,21 @@ python3 -m http.server 8000
 </details>
 
 <details>
+<summary><b>Q: 上传提示"上传过于频繁"？</b></summary>
+
+**A:** 为了保护 GitHub API，上传功能有频率限制：
+- 最小间隔：3 秒
+- 如果触发限制，请等待提示的秒数后再试
+- 这是为了防止 GitHub API 滥用和触发更严格的限制
+</details>
+
+<details>
 <summary><b>Q: 管理密钥忘记了怎么办？</b></summary>
 
 **A:** 访问 Cloudflare Dashboard：
 - Pages → 你的项目 → Settings → Environment variables
 - 查看或修改 `ADMIN_KEY` 的值
+- 如果未设置，默认密钥是 `meme-gallery-2024`
 </details>
 
 <details>
@@ -212,8 +236,9 @@ meme-gallery/
 ├── functions/              # Pages Functions API
 │   └── api/
 │       ├── memes.js        # 表情包增删查
-│       ├── upload.js       # GitHub 图床上传
+│       ├── upload.js       # GitHub 图床上传（频率限制）
 │       ├── verify-key.js   # 管理密钥验证
+│       ├── scan-repo.js    # 扫描仓库图片
 │       └── memes/
 │           ├── [id].js     # 删除单个
 │           ├── search.js   # 搜索
@@ -238,13 +263,15 @@ meme-gallery/
 
 ⚙️ **可选配置**
 - GitHub 图床：`GITHUB_TOKEN`、`GITHUB_REPO`
-- 管理保护：`ADMIN_KEY`（强烈推荐）
+- 管理保护：`ADMIN_KEY`（默认：`meme-gallery-2024`，**强烈建议修改**）
 
 🔐 **安全建议**
-- 使用强随机密码作为 `ADMIN_KEY`
-- 不要在公开场合分享 GitHub Token
+- 使用强随机密码作为 `ADMIN_KEY`（不要使用默认密钥）
+- 不要在公开场合分享 GitHub Token 和 ADMIN_KEY
 - 定期导出数据备份
-- 管理权限每次刷新后需重新验证
+- 管理权限在会话期间有效（sessionStorage），页面刷新后需重新验证
+- 验证密钥通过 HTTPS 加密传输，不会在 URL 中暴露
+- 上传功能有频率限制（3秒/次），防止 API 滥用
 
 ## 🤝 贡献
 

@@ -26,9 +26,45 @@ export async function onRequestPost(context) {
       );
     }
 
+    // GitHub API 频率限制检查
+    const clientIP = context.request.headers.get('CF-Connecting-IP') || 'unknown';
+    const rateLimitKey = `upload_ratelimit_${clientIP}`;
+    const now = Date.now();
+
+    // 获取上次上传时间
+    const lastUploadTime = await MEME_GALLERY_KV.get(rateLimitKey);
+    if (lastUploadTime) {
+      const timeSinceLastUpload = now - parseInt(lastUploadTime);
+      const minInterval = 3000; // 最小间隔 3 秒
+
+      if (timeSinceLastUpload < minInterval) {
+        const waitTime = Math.ceil((minInterval - timeSinceLastUpload) / 1000);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `上传过于频繁，请等待 ${waitTime} 秒后再试`
+          }),
+          { status: 429, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // 生成文件路径
     const timestamp = Date.now();
-    const ext = filename.split('.').pop();
+    const ext = filename.split('.').pop().toLowerCase();
+
+    // 验证文件扩展名
+    const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (!allowedExts.includes(ext)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `不支持的文件格式，仅支持: ${allowedExts.join(', ')}`
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const githubFilename = `meme-${timestamp}.${ext}`;
     const githubPath = `images/${githubFilename}`;
     const branch = GITHUB_BRANCH || 'main';
@@ -52,6 +88,18 @@ export async function onRequestPost(context) {
     if (!githubResponse.ok) {
       const errorData = await githubResponse.json();
       console.error('GitHub API Error:', errorData);
+
+      // GitHub API 特定错误处理
+      if (githubResponse.status === 403) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'GitHub API 频率限制，请稍后再试'
+          }),
+          { status: 429, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
         JSON.stringify({
           success: false,
@@ -80,6 +128,9 @@ export async function onRequestPost(context) {
 
     memes.unshift(newMeme);
     await MEME_GALLERY_KV.put('memes', JSON.stringify(memes));
+
+    // 记录上传时间（设置 TTL 为 1 小时）
+    await MEME_GALLERY_KV.put(rateLimitKey, now.toString(), { expirationTtl: 3600 });
 
     return new Response(
       JSON.stringify({ success: true, data: newMeme }),

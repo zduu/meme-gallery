@@ -9,6 +9,11 @@ class MemeGallery {
         this.currentCategory = 'all';  // 当前分类：all, link, upload
         this.currentMode = 'link';  // 当前添加模式：link, upload
         this.selectedFile = null;  // 选中的文件
+        this.logoClickCount = 0;  // Logo 点击计数
+        this.logoClickTimer = null;  // 点击计数重置定时器
+        this.isAdmin = sessionStorage.getItem('isAdmin') === 'true';  // 管理员状态
+        this.currentMemeForTags = null;  // 当前正在编辑标签的表情包
+        this.allTags = new Set();  // 所有标签集合
         this.init();
     }
 
@@ -16,7 +21,7 @@ class MemeGallery {
         await this.loadFromRemote();
         this.bindEvents();
         this.applyGridSize();
-        this.checkAdminAccess();  // 检查管理员访问权限
+        this.updateAdminButtons();  // 更新管理员按钮显示状态
         this.render();
     }
 
@@ -308,6 +313,103 @@ class MemeGallery {
         }
     }
 
+    async scanRepo() {
+        if (!confirm('扫描 GitHub 仓库中的所有图片文件并添加到画廊？')) {
+            return;
+        }
+
+        try {
+            this.setLoading(true);
+            const result = await this.apiCall('/api/scan-repo', 'POST');
+
+            if (result.success) {
+                await this.loadFromRemote();
+                const { total, new: newCount, existing } = result.data;
+                this.showToast(
+                    `扫描完成！发现 ${total} 张图片，新增 ${newCount} 张，已存在 ${existing} 张`,
+                    'success'
+                );
+                this.closeModal('menuModal');
+            }
+        } catch (error) {
+            this.showToast(`扫描失败：${error.message}`, 'error');
+        } finally {
+            this.setLoading(false);
+        }
+    }
+
+    // ========== 标签管理 ==========
+
+    async updateMemeTags(memeId, tags) {
+        try {
+            this.setLoading(true);
+            const result = await this.apiCall('/api/memes/tags', 'POST', {
+                memeId,
+                tags
+            });
+
+            if (result.success) {
+                await this.loadFromRemote();
+                return { success: true };
+            } else {
+                return { success: false, message: result.error };
+            }
+        } catch (error) {
+            return { success: false, message: error.message };
+        } finally {
+            this.setLoading(false);
+        }
+    }
+
+    openTagsModal(meme) {
+        this.currentMemeForTags = meme;
+        const tagsInput = document.getElementById('tagsInput');
+        const memeName = document.getElementById('tagsMemeNameDisplay');
+
+        // 显示当前表情包名称
+        memeName.textContent = meme.name;
+
+        // 初始化标签输入
+        tagsInput.value = (meme.tags || []).join(', ');
+
+        // 显示弹窗
+        this.openModal('tagsModal');
+        tagsInput.focus();
+    }
+
+    async saveMemeTags() {
+        if (!this.currentMemeForTags) return;
+
+        const tagsInput = document.getElementById('tagsInput');
+        const tagsMessage = document.getElementById('tagsMessage');
+
+        // 解析标签（逗号或空格分隔）
+        const tagsText = tagsInput.value.trim();
+        const tags = tagsText
+            ? tagsText.split(/[,，\s]+/).filter(tag => tag.trim()).map(tag => tag.trim())
+            : [];
+
+        const result = await this.updateMemeTags(this.currentMemeForTags.id, tags);
+
+        if (result.success) {
+            this.showToast('标签已更新', 'success');
+            this.closeModal('tagsModal');
+            this.currentMemeForTags = null;
+        } else {
+            tagsMessage.className = 'message error';
+            tagsMessage.textContent = `更新失败：${result.message}`;
+        }
+    }
+
+    collectAllTags() {
+        this.allTags.clear();
+        this.memes.forEach(meme => {
+            if (meme.tags && Array.isArray(meme.tags)) {
+                meme.tags.forEach(tag => this.allTags.add(tag));
+            }
+        });
+    }
+
     // ========== UI 渲染 ==========
 
     setLoading(loading) {
@@ -339,6 +441,9 @@ class MemeGallery {
     render() {
         const gallery = document.getElementById('gallery');
         const totalCount = document.getElementById('totalCount');
+
+        // 收集所有标签
+        this.collectAllTags();
 
         // 应用分类过滤
         let displayMemes = this.filteredMemes.length > 0 || this.memes.length === 0
@@ -393,6 +498,12 @@ class MemeGallery {
     }
 
     createMemeCard(meme) {
+        // 确保 meme 有 tags 数组
+        const tags = meme.tags || [];
+        const tagsHtml = tags.length > 0
+            ? `<div class="meme-tags">${tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
+            : '';
+
         return `
             <div class="meme-card">
                 <div class="meme-image-container">
@@ -405,12 +516,16 @@ class MemeGallery {
                     >
                     <div class="meme-overlay">
                         <div class="meme-name">${this.escapeHtml(meme.name)}</div>
+                        ${tagsHtml}
                         <div class="meme-actions">
-                            <button class="meme-action-btn copy-btn" data-url="${this.escapeHtml(meme.url)}" onclick="event.stopPropagation()">
-                                📋 复制
+                            <button class="meme-action-btn copy-btn" data-url="${this.escapeHtml(meme.url)}" onclick="event.stopPropagation()" title="复制链接">
+                                📋
                             </button>
-                            <button class="meme-action-btn delete-btn" data-id="${meme.id}" onclick="event.stopPropagation()">
-                                🗑️ 删除
+                            <button class="meme-action-btn tags-btn" data-meme='${JSON.stringify(meme).replace(/'/g, '&apos;')}' onclick="event.stopPropagation()" title="管理标签">
+                                🏷️
+                            </button>
+                            <button class="meme-action-btn delete-btn ${this.isAdmin ? '' : 'hidden'}" data-id="${meme.id}" onclick="event.stopPropagation()" title="删除">
+                                🗑️
                             </button>
                         </div>
                     </div>
@@ -446,6 +561,11 @@ class MemeGallery {
     // ========== 事件绑定 ==========
 
     bindEvents() {
+        // Logo 点击事件（5次触发管理员验证）
+        document.querySelector('.logo').addEventListener('click', () => {
+            this.handleLogoClick();
+        });
+
         // 分类标签切换
         document.querySelectorAll('.category-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -590,6 +710,10 @@ class MemeGallery {
             await this.exportData();
         });
 
+        document.getElementById('scanRepoBtn').addEventListener('click', async () => {
+            await this.scanRepo();
+        });
+
         document.getElementById('importBtn').addEventListener('click', () => {
             document.getElementById('importFile').click();
         });
@@ -618,6 +742,69 @@ class MemeGallery {
             });
         });
 
+        // 管理员验证弹窗
+        document.getElementById('adminModalClose').addEventListener('click', () => {
+            this.closeModal('adminModal');
+            document.getElementById('adminKeyInput').value = '';
+            document.getElementById('adminMessage').style.display = 'none';
+        });
+
+        document.getElementById('cancelAdminBtn').addEventListener('click', () => {
+            this.closeModal('adminModal');
+            document.getElementById('adminKeyInput').value = '';
+            document.getElementById('adminMessage').style.display = 'none';
+        });
+
+        document.getElementById('verifyAdminBtn').addEventListener('click', async () => {
+            await this.verifyAdmin();
+        });
+
+        // 密码显示/隐藏切换
+        document.getElementById('toggleAdminPassword').addEventListener('click', () => {
+            const input = document.getElementById('adminKeyInput');
+            const button = document.getElementById('toggleAdminPassword');
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
+                button.title = '隐藏密码';
+            } else {
+                input.type = 'password';
+                button.textContent = '👁️';
+                button.title = '显示密码';
+            }
+        });
+
+        // 管理员密钥输入框回车提交
+        document.getElementById('adminKeyInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('verifyAdminBtn').click();
+            }
+        });
+
+        // 标签管理弹窗
+        document.getElementById('tagsModalClose').addEventListener('click', () => {
+            this.closeModal('tagsModal');
+            document.getElementById('tagsInput').value = '';
+            document.getElementById('tagsMessage').style.display = 'none';
+        });
+
+        document.getElementById('cancelTagsBtn').addEventListener('click', () => {
+            this.closeModal('tagsModal');
+            document.getElementById('tagsInput').value = '';
+            document.getElementById('tagsMessage').style.display = 'none';
+        });
+
+        document.getElementById('saveTagsBtn').addEventListener('click', async () => {
+            await this.saveMemeTags();
+        });
+
+        // 标签输入框回车提交
+        document.getElementById('tagsInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('saveTagsBtn').click();
+            }
+        });
+
         // 点击弹窗外部关闭
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
@@ -643,7 +830,7 @@ class MemeGallery {
                 try {
                     await navigator.clipboard.writeText(url);
                     const originalText = e.currentTarget.innerHTML;
-                    e.currentTarget.innerHTML = '✅ 已复制';
+                    e.currentTarget.innerHTML = '✅';
                     e.currentTarget.classList.add('copied');
 
                     this.showToast('链接已复制到剪贴板', 'success');
@@ -659,6 +846,15 @@ class MemeGallery {
             });
         });
 
+        // 标签管理按钮
+        document.querySelectorAll('.tags-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const memeData = e.currentTarget.dataset.meme;
+                const meme = JSON.parse(memeData);
+                this.openTagsModal(meme);
+            });
+        });
+
         // 删除表情包
         document.querySelectorAll('.delete-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -670,36 +866,97 @@ class MemeGallery {
 
     // ========== 工具函数 ==========
 
-    async checkAdminAccess() {
-        // 检查 URL 参数中是否有密钥
-        const urlParams = new URLSearchParams(window.location.search);
-        const key = urlParams.get('key');
+    updateAdminButtons() {
+        // 根据管理员状态显示/隐藏按钮
+        const importBtn = document.getElementById('importBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const scanRepoBtn = document.getElementById('scanRepoBtn');
+
+        if (this.isAdmin) {
+            importBtn.classList.remove('hidden');
+            clearAllBtn.classList.remove('hidden');
+            scanRepoBtn.classList.remove('hidden');
+        } else {
+            importBtn.classList.add('hidden');
+            clearAllBtn.classList.add('hidden');
+            scanRepoBtn.classList.add('hidden');
+        }
+    }
+
+    handleLogoClick() {
+        // 如果已经是管理员,不再计数
+        if (this.isAdmin) {
+            return;
+        }
+
+        // 增加点击计数
+        this.logoClickCount++;
+
+        // 清除之前的定时器
+        if (this.logoClickTimer) {
+            clearTimeout(this.logoClickTimer);
+        }
+
+        // 5秒后重置计数
+        this.logoClickTimer = setTimeout(() => {
+            this.logoClickCount = 0;
+        }, 5000);
+
+        // 达到5次点击时触发管理员验证
+        if (this.logoClickCount >= 5) {
+            this.logoClickCount = 0;
+            this.openModal('adminModal');
+            document.getElementById('adminKeyInput').focus();
+        }
+    }
+
+    async verifyAdmin() {
+        const keyInput = document.getElementById('adminKeyInput');
+        const adminMessage = document.getElementById('adminMessage');
+        const key = keyInput.value.trim();
 
         if (!key) {
-            // 没有密钥参数，保持按钮隐藏
+            adminMessage.className = 'message error';
+            adminMessage.textContent = '请输入管理密钥';
             return;
         }
 
         try {
-            // 验证密钥
+            this.setLoading(true);
             const result = await this.apiCall('/api/verify-key', 'POST', { key });
 
             if (result.success && result.valid) {
-                // 密钥正确，显示管理按钮
-                document.getElementById('importBtn').classList.remove('hidden');
-                document.getElementById('clearAllBtn').classList.remove('hidden');
-                this.showToast('管理员权限已激活', 'success');
+                // 验证成功
+                this.isAdmin = true;
+                sessionStorage.setItem('isAdmin', 'true');
+                this.updateAdminButtons();
+                this.closeModal('adminModal');
 
-                // 从 URL 中移除密钥参数，避免泄露
-                const newUrl = window.location.pathname;
-                window.history.replaceState({}, document.title, newUrl);
-            } else {
+                // 如果有警告信息，显示警告 Toast
+                if (result.warning) {
+                    this.showToast(`⚠️ ${result.warning}`, 'success');
+                } else {
+                    this.showToast('管理员权限已激活 ✅', 'success');
+                }
+
+                keyInput.value = '';
+                adminMessage.style.display = 'none';
+            } else if (result.success && !result.valid) {
                 // 密钥错误
-                this.showToast('管理密钥错误', 'error');
+                adminMessage.className = 'message error';
+                adminMessage.textContent = '管理密钥错误，请重新输入';
+                keyInput.value = '';
+                keyInput.focus();
+            } else {
+                // 其他错误
+                adminMessage.className = 'message error';
+                adminMessage.textContent = result.error || '验证失败';
             }
         } catch (error) {
-            console.error('验证管理密钥失败:', error);
-            // 如果验证失败（比如未配置 ADMIN_KEY），也不显示按钮
+            adminMessage.className = 'message error';
+            adminMessage.textContent = `验证失败：${error.message}`;
+        } finally {
+            this.setLoading(false);
         }
     }
 
