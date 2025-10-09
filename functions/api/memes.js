@@ -29,7 +29,7 @@ export async function onRequestPost(context) {
   try {
     const { MEME_GALLERY_KV } = context.env;
     const body = await context.request.json();
-    const { url, name } = body;
+    const { url, name, source } = body;
 
     if (!url) {
       return new Response(
@@ -50,6 +50,7 @@ export async function onRequestPost(context) {
       id: Date.now() + Math.random(),
       url: url,
       name: name || generateDefaultName(url, memes.length),
+      source: source || 'link',  // 默认为 link
       addedAt: new Date().toISOString(),
     };
 

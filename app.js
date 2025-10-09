@@ -6,6 +6,9 @@ class MemeGallery {
         this.apiEndpoint = '';  // 相对路径
         this.isLoading = false;
         this.gridSize = localStorage.getItem('gridSize') || 'medium';  // 网格大小设置
+        this.currentCategory = 'all';  // 当前分类：all, link, upload
+        this.currentMode = 'link';  // 当前添加模式：link, upload
+        this.selectedFile = null;  // 选中的文件
         this.init();
     }
 
@@ -13,6 +16,7 @@ class MemeGallery {
         await this.loadFromRemote();
         this.bindEvents();
         this.applyGridSize();
+        this.checkAdminAccess();  // 检查管理员访问权限
         this.render();
     }
 
@@ -100,7 +104,7 @@ class MemeGallery {
 
         try {
             this.setLoading(true);
-            const result = await this.apiCall('/api/memes', 'POST', { url, name });
+            const result = await this.apiCall('/api/memes', 'POST', { url, name, source: 'link' });
 
             if (result.success) {
                 await this.loadFromRemote();
@@ -114,6 +118,61 @@ class MemeGallery {
         } finally {
             this.setLoading(false);
         }
+    }
+
+    async uploadMeme(file, name = '') {
+        if (!file) {
+            return { success: false, message: '请选择图片文件' };
+        }
+
+        // 检查文件类型
+        const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            return { success: false, message: '不支持的文件格式，请选择 JPG、PNG、GIF 或 WEBP' };
+        }
+
+        // 检查文件大小 (限制 10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            return { success: false, message: '文件太大，请选择小于 10MB 的图片' };
+        }
+
+        try {
+            this.setLoading(true);
+
+            // 转换为 Base64
+            const base64 = await this.fileToBase64(file);
+
+            // 调用上传 API
+            const result = await this.apiCall('/api/upload', 'POST', {
+                file: base64,
+                filename: file.name,
+                name: name || file.name.replace(/\.[^/.]+$/, ''),
+                source: 'upload'
+            });
+
+            if (result.success) {
+                await this.loadFromRemote();
+                this.closeModal('addModal');
+                this.resetUploadForm();
+                return { success: true, message: `成功上传表情包：${result.data.name}` };
+            } else {
+                return { success: false, message: result.error || '上传失败' };
+            }
+        } catch (error) {
+            return { success: false, message: error.message };
+        } finally {
+            this.setLoading(false);
+        }
+    }
+
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
     }
 
     async deleteMeme(id) {
@@ -280,11 +339,20 @@ class MemeGallery {
     render() {
         const gallery = document.getElementById('gallery');
         const totalCount = document.getElementById('totalCount');
-        const displayMemes = this.filteredMemes.length > 0 || this.memes.length === 0
+
+        // 应用分类过滤
+        let displayMemes = this.filteredMemes.length > 0 || this.memes.length === 0
             ? this.filteredMemes
             : this.memes;
 
+        // 根据当前分类过滤
+        if (this.currentCategory !== 'all') {
+            displayMemes = displayMemes.filter(meme => meme.source === this.currentCategory);
+        }
+
+        // 更新计数
         totalCount.textContent = this.memes.length;
+        this.updateCategoryCounts();
 
         if (displayMemes.length === 0 && !this.isLoading) {
             gallery.innerHTML = `
@@ -301,6 +369,27 @@ class MemeGallery {
 
         gallery.innerHTML = displayMemes.map(meme => this.createMemeCard(meme)).join('');
         this.bindCardEvents();
+    }
+
+    updateCategoryCounts() {
+        const allCount = this.memes.length;
+        const linkCount = this.memes.filter(m => m.source === 'link').length;
+        const uploadCount = this.memes.filter(m => m.source === 'upload').length;
+
+        document.getElementById('countAll').textContent = allCount;
+        document.getElementById('countLink').textContent = linkCount;
+        document.getElementById('countUpload').textContent = uploadCount;
+    }
+
+    setCategory(category) {
+        this.currentCategory = category;
+
+        // 更新标签激活状态
+        document.querySelectorAll('.category-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.category === category);
+        });
+
+        this.render();
     }
 
     createMemeCard(meme) {
@@ -357,6 +446,21 @@ class MemeGallery {
     // ========== 事件绑定 ==========
 
     bindEvents() {
+        // 分类标签切换
+        document.querySelectorAll('.category-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.setCategory(tab.dataset.category);
+            });
+        });
+
+        // 添加模式切换
+        document.querySelectorAll('.add-mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const mode = tab.dataset.mode;
+                this.setAddMode(mode);
+            });
+        });
+
         // 顶部按钮
         document.getElementById('searchToggle').addEventListener('click', () => {
             const searchBar = document.getElementById('searchBar');
@@ -400,18 +504,27 @@ class MemeGallery {
         });
 
         document.getElementById('addBtn').addEventListener('click', async () => {
-            const urlInput = document.getElementById('urlInput');
-            const nameInput = document.getElementById('nameInput');
             const message = document.getElementById('addMessage');
 
-            const result = await this.addMeme(urlInput.value, nameInput.value);
+            let result;
+            if (this.currentMode === 'link') {
+                const urlInput = document.getElementById('urlInput');
+                const nameInput = document.getElementById('nameInput');
+                result = await this.addMeme(urlInput.value, nameInput.value);
+
+                if (result.success) {
+                    urlInput.value = '';
+                    nameInput.value = '';
+                }
+            } else {
+                const nameInput = document.getElementById('uploadNameInput');
+                result = await this.uploadMeme(this.selectedFile, nameInput.value);
+            }
 
             message.className = `message ${result.success ? 'success' : 'error'}`;
             message.textContent = result.message;
 
             if (result.success) {
-                urlInput.value = '';
-                nameInput.value = '';
                 this.showToast(result.message, 'success');
                 setTimeout(() => {
                     message.style.display = 'none';
@@ -420,9 +533,52 @@ class MemeGallery {
         });
 
         document.getElementById('clearBtn').addEventListener('click', () => {
-            document.getElementById('urlInput').value = '';
-            document.getElementById('nameInput').value = '';
+            if (this.currentMode === 'link') {
+                document.getElementById('urlInput').value = '';
+                document.getElementById('nameInput').value = '';
+            } else {
+                this.resetUploadForm();
+            }
             document.getElementById('addMessage').style.display = 'none';
+        });
+
+        // 图片上传相关
+        const uploadArea = document.getElementById('uploadArea');
+        const imageInput = document.getElementById('imageInput');
+
+        uploadArea.addEventListener('click', () => {
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                this.handleFileSelect(file);
+            }
+        });
+
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                this.handleFileSelect(file);
+            }
+        });
+
+        document.getElementById('removePreview').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.resetUploadForm();
         });
 
         // 菜单弹窗
@@ -513,6 +669,80 @@ class MemeGallery {
     }
 
     // ========== 工具函数 ==========
+
+    async checkAdminAccess() {
+        // 检查 URL 参数中是否有密钥
+        const urlParams = new URLSearchParams(window.location.search);
+        const key = urlParams.get('key');
+
+        if (!key) {
+            // 没有密钥参数，保持按钮隐藏
+            return;
+        }
+
+        try {
+            // 验证密钥
+            const result = await this.apiCall('/api/verify-key', 'POST', { key });
+
+            if (result.success && result.valid) {
+                // 密钥正确，显示管理按钮
+                document.getElementById('importBtn').classList.remove('hidden');
+                document.getElementById('clearAllBtn').classList.remove('hidden');
+                this.showToast('管理员权限已激活', 'success');
+
+                // 从 URL 中移除密钥参数，避免泄露
+                const newUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, newUrl);
+            } else {
+                // 密钥错误
+                this.showToast('管理密钥错误', 'error');
+            }
+        } catch (error) {
+            console.error('验证管理密钥失败:', error);
+            // 如果验证失败（比如未配置 ADMIN_KEY），也不显示按钮
+        }
+    }
+
+    setAddMode(mode) {
+        this.currentMode = mode;
+
+        // 更新标签激活状态
+        document.querySelectorAll('.add-mode-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.mode === mode);
+        });
+
+        // 切换内容区域
+        document.getElementById('linkMode').classList.toggle('hidden', mode !== 'link');
+        document.getElementById('uploadMode').classList.toggle('hidden', mode !== 'upload');
+    }
+
+    handleFileSelect(file) {
+        this.selectedFile = file;
+
+        // 显示预览
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('previewImg').src = e.target.result;
+            document.getElementById('uploadArea').style.display = 'none';
+            document.getElementById('imagePreview').classList.remove('hidden');
+
+            // 自动填充文件名（去掉扩展名）
+            const nameInput = document.getElementById('uploadNameInput');
+            if (!nameInput.value) {
+                nameInput.value = file.name.replace(/\.[^/.]+$/, '');
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    resetUploadForm() {
+        this.selectedFile = null;
+        document.getElementById('imageInput').value = '';
+        document.getElementById('uploadNameInput').value = '';
+        document.getElementById('previewImg').src = '';
+        document.getElementById('uploadArea').style.display = '';
+        document.getElementById('imagePreview').classList.add('hidden');
+    }
 
     showToast(message, type = 'success') {
         const toast = document.getElementById('toast');

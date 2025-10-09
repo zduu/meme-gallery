@@ -1,308 +1,250 @@
 # 表情包管理器 - Meme Gallery
 
-一个使用 Cloudflare Pages + KV 存储的表情包管理系统，支持静态图片和动态 GIF，数据存储在云端。
+一个功能完善的表情包管理系统，基于 Cloudflare Pages + KV 构建，支持链接添加和本地上传，数据云端存储。
 
-## ✨ 功能特点
+## ✨ 核心功能
 
-- 📥 **智能识别**：自动识别三种格式的图片链接
-  - 纯链接：`https://example.com/image.gif`
-  - Markdown：`![](https://example.com/image.gif)`
-  - HTML：`<img src="https://example.com/image.gif">`
+### 📥 智能添加
+- **链接识别**：自动识别三种格式（纯链接、Markdown、HTML）
+- **本地上传**：拖拽或选择图片，上传到 GitHub 作为图床
+- **去重检测**：自动识别重复链接
 
-- 🎨 **表情包管理**
-  - 添加/删除表情包
-  - 自定义表情包名称
-  - 实时搜索功能（防抖优化）
-  - 预览静态和动态图片
+### 🎨 强大管理
+- **分类查看**：全部 / 链接添加 / 本地上传
+- **实时搜索**：关键词搜索（300ms 防抖）
+- **网格调整**：小(150px) / 中(200px) / 大(300px)
+- **一键复制**：快速复制表情包链接
 
-- 📋 **一键复制**：快速复制表情包链接
+### ☁️ 数据安全
+- **云端存储**：Cloudflare KV 持久化存储
+- **跨设备同步**：导出/导入 JSON 数据
+- **管理保护**：管理密钥保护敏感操作
+- **智能导出**：自动将上传图片转换为链接格式
 
-- ☁️ **云端存储**
-  - Cloudflare KV 存储
-  - 跨设备同步
-  - 数据持久化
-  - 导出/导入 JSON 数据
+### 📱 用户体验
+- **响应式设计**：完美适配桌面和移动端
+- **美观界面**：Gallery-first 设计理念
+- **流畅交互**：统一网格、悬停预览
 
-- 📱 **响应式设计**：适配桌面端和移动端
+## 🚀 快速开始
 
-## 📦 项目结构
+### 部署到 Cloudflare Pages
 
-```
-meme-gallery/
-├── index.html                      # 前端页面
-├── style.css                       # 样式文件
-├── app.js                          # 前端逻辑
-├── functions/                      # Pages Functions (API)
-│   └── api/
-│       ├── memes.js               # GET/POST /api/memes
-│       └── memes/
-│           ├── [id].js            # DELETE /api/memes/:id
-│           ├── search.js          # GET /api/memes/search
-│           ├── export.js          # GET /api/memes/export
-│           ├── import.js          # POST /api/memes/import
-│           └── clear.js           # DELETE /api/memes/clear
-├── package.json                    # NPM 配置
-├── .gitignore
-└── README.md
-```
-
-## 🧪 本地测试
-
-### 方法 1：Wrangler 完整测试（推荐）
-
-完整模拟生产环境，支持 Pages Functions + KV。
+#### 1. 推送到 GitHub
 
 ```bash
-# 安装 Wrangler
-npm install -g wrangler
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/meme-gallery.git
+git push -u origin main
+```
 
-# 安装项目依赖
-cd meme-gallery
+#### 2. 连接 Cloudflare Pages
+
+1. 访问 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+3. 选择仓库 `meme-gallery`
+4. 构建配置**全部留空**
+5. 点击 **Save and Deploy**
+
+#### 3. 配置环境
+
+**必需配置：**
+
+| 位置 | 操作 |
+|------|------|
+| **Settings** → **Functions** → **KV namespace bindings** | 添加绑定：`MEME_GALLERY_KV` |
+
+**可选配置（Settings → Environment variables）：**
+
+| 变量名 | 用途 | 示例值 |
+|--------|------|--------|
+| `GITHUB_TOKEN` | GitHub 图床上传 | `ghp_xxxxxxxxxxxx` |
+| `GITHUB_REPO` | GitHub 仓库 | `username/repo-name` |
+| `GITHUB_BRANCH` | GitHub 分支 | `main` (默认) |
+| `ADMIN_KEY` | 管理功能保护 | `my-secret-2024` |
+
+**配置说明：**
+- **GITHUB_TOKEN**：访问 [GitHub Settings](https://github.com/settings/tokens) 生成，需要 `repo` 权限
+- **ADMIN_KEY**：自定义强密码，保护导入和清空功能
+
+#### 4. 完成
+
+✅ 访问你的 Pages 域名即可使用！
+
+## 🎯 使用指南
+
+### 添加表情包
+
+**方式一：链接添加**
+```
+纯链接：https://example.com/image.gif
+Markdown：![](https://example.com/image.gif)
+HTML：<img src="https://example.com/image.gif">
+```
+
+**方式二：本地上传**
+1. 点击 ➕ → 📤 上传图片
+2. 拖拽或选择图片（JPG/PNG/GIF/WEBP，最大 10MB）
+3. 输入名称（可选）→ 添加
+
+### 分类查看
+
+- **全部**：所有表情包
+- **链接添加**：通过链接添加的表情包
+- **本地上传**：上传到 GitHub 的表情包
+
+### 管理功能
+
+**导出数据**：
+- 点击菜单 → 导出数据
+- 自动将上传图片转换为链接格式
+- 便于跨设备迁移
+
+**导入/清空（需管理权限）**：
+1. 配置 `ADMIN_KEY` 环境变量
+2. 访问 `https://your-site.pages.dev/?key=你的密钥`
+3. 验证成功后显示管理按钮
+
+## 🧪 本地开发
+
+### 方法 1：完整测试（推荐）
+
+```bash
+# 安装依赖
 npm install
 
-# 启动开发服务器（本地模拟 KV）
+# 启动开发服务器
 npm run dev
 
 # 访问 http://localhost:8788
 ```
 
-**优点：**
-- ✅ 完整的 API 功能
-- ✅ 本地 KV 模拟（无需登录）
-- ✅ 热重载
-- ✅ 实时日志
-
-### 方法 2：纯静态测试（快速预览）
-
-只测试前端界面，API 功能不可用。
+### 方法 2：快速预览
 
 ```bash
-# 使用 Python
 python3 -m http.server 8000
-
-# 或使用 Node.js
-npx http-server -p 8000
-
 # 访问 http://localhost:8000
+# 注意：仅前端，API 不可用
 ```
 
-### 方法 3：使用远程 KV 测试
+## 📝 API 接口
 
-测试真实的云端存储。
+| 方法 | 路径 | 说明 | 权限 |
+|------|------|------|------|
+| GET | `/api/memes` | 获取所有表情包 | 公开 |
+| POST | `/api/memes` | 添加表情包（链接） | 公开 |
+| POST | `/api/upload` | 上传图片到 GitHub | 公开 |
+| DELETE | `/api/memes/:id` | 删除表情包 | 公开 |
+| GET | `/api/memes/search?q=关键词` | 搜索表情包 | 公开 |
+| GET | `/api/memes/export` | 导出数据 | 公开 |
+| POST | `/api/verify-key` | 验证管理密钥 | - |
+| POST | `/api/memes/import` | 导入数据 | 需管理权限 |
+| DELETE | `/api/memes/clear` | 清空所有 | 需管理权限 |
 
-```bash
-# 登录 Cloudflare
-wrangler login
+## 🐛 常见问题
 
-# 创建预览 KV
-wrangler kv:namespace create MEME_GALLERY_KV --preview
-# 记录返回的 preview_id
+<details>
+<summary><b>Q: 提示 "MEME_GALLERY_KV is not defined"</b></summary>
 
-# 使用远程 KV 启动
-wrangler pages dev . --kv MEME_GALLERY_KV=YOUR_PREVIEW_KV_ID
+**A:** 需要在 Pages 项目设置中绑定 KV namespace：
+- Settings → Functions → KV namespace bindings
+- 添加绑定：`MEME_GALLERY_KV`
+</details>
 
-# 访问 http://localhost:8788
-```
+<details>
+<summary><b>Q: 为什么看不到导入和清空按钮？</b></summary>
 
-### 测试功能清单
+**A:** 这些功能需要管理权限：
+1. 配置环境变量 `ADMIN_KEY`
+2. 访问 `https://your-site.pages.dev/?key=你的密钥`
+3. 验证成功后按钮会显示
+</details>
 
-部署前确保以下功能正常：
+<details>
+<summary><b>Q: 上传功能提示 "未配置 GitHub 存储"</b></summary>
 
-- [ ] 添加表情包（纯链接 / Markdown / HTML）
-- [ ] 删除表情包
-- [ ] 搜索表情包
-- [ ] 复制链接到剪贴板
-- [ ] 导出 JSON 数据
-- [ ] 导入 JSON 数据
-- [ ] 清空所有数据
-- [ ] 响应式布局（手机/桌面）
-- [ ] GIF 动图播放
+**A:** 需要配置环境变量：
+- `GITHUB_TOKEN`：GitHub Personal Access Token (需要 repo 权限)
+- `GITHUB_REPO`：仓库地址 (格式: `username/repo-name`)
+</details>
 
-## 🚀 部署到 Cloudflare Pages
+<details>
+<summary><b>Q: 导出的数据可以在其他设备使用吗？</b></summary>
 
-### 方法 A：Git 部署（推荐）
+**A:** 可以！导出时会自动将上传图片转换为链接格式：
+- 不依赖原 GitHub 仓库配置
+- 可在任何设备/项目导入
+- 图片仍托管在原仓库，可正常访问
+</details>
 
-#### 1️⃣ 推送到 GitHub
+<details>
+<summary><b>Q: 管理密钥忘记了怎么办？</b></summary>
 
-```bash
-git init
-git add .
-git commit -m "Initial commit: 表情包管理器"
-git remote add origin https://github.com/YOUR_USERNAME/meme-gallery.git
-git branch -M main
-git push -u origin main
-```
+**A:** 访问 Cloudflare Dashboard：
+- Pages → 你的项目 → Settings → Environment variables
+- 查看或修改 `ADMIN_KEY` 的值
+</details>
 
-#### 2️⃣ 连接到 Cloudflare Pages
+<details>
+<summary><b>Q: 本地测试时 API 不工作？</b></summary>
 
-1. 访问 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**
-3. 选择你的 GitHub 仓库 `meme-gallery`
-4. 构建设置**全部留空**（无需任何配置）
-5. 点击 **Save and Deploy**
-
-#### 3️⃣ 绑定 KV 存储
-
-部署完成后：
-
-1. 进入你的 Pages 项目
-2. **Settings** → **Functions** → **KV namespace bindings**
-3. 点击 **Add binding**：
-   - **Variable name**: `MEME_GALLERY_KV`（必须完全一致）
-   - **KV namespace**: 创建新的或选择现有的
-4. 保存设置
-
-✅ 完成！访问你的 Pages 域名开始使用。
-
-### 方法 B：直接上传（无需 Git）
-
-#### 1️⃣ 压缩并上传
-
-1. 将整个 `meme-gallery` 文件夹打包为 zip（包含 `functions` 文件夹）
-2. Cloudflare Dashboard → **Workers & Pages** → **Create application** → **Pages** → **Upload assets**
-3. 上传 zip 文件并部署
-
-#### 2️⃣ 绑定 KV
-
-同上面的第 3 步。
-
-## 🔧 技术栈
-
-- **前端**：HTML5 + CSS3 + JavaScript (ES6+)
-- **后端**：Cloudflare Pages Functions（基于 Workers）
-- **存储**：Cloudflare KV（键值存储）
-- **特点**：零配置，一键部署
-
-## 📝 API 接口说明
-
-所有 API 通过 Pages Functions 自动处理：
-
-- `GET /api/memes` - 获取所有表情包
-- `POST /api/memes` - 添加表情包
-- `DELETE /api/memes/:id` - 删除表情包
-- `GET /api/memes/search?q=关键词` - 搜索表情包
-- `GET /api/memes/export` - 导出数据
-- `POST /api/memes/import` - 导入数据
-- `DELETE /api/memes/clear` - 清空所有
-
-## 🎯 使用说明
-
-### 添加表情包
-
-支持三种格式，粘贴后自动识别：
-
-```
-https://example.com/meme.gif
-![表情包](https://example.com/meme.gif)
-<img src="https://example.com/meme.gif">
-```
-
-### 搜索表情包
-
-在搜索框输入关键词，实时搜索（300ms 防抖）
-
-### 数据管理
-
-- **导出**：下载 JSON 文件备份
-- **导入**：从 JSON 文件恢复
-- **清空**：删除所有数据（需确认）
+**A:** 使用 `npm run dev` 启动 Wrangler，而不是普通 HTTP 服务器。
+</details>
 
 ## 💰 成本说明
 
-Cloudflare 免费套餐包括：
-
+Cloudflare 免费套餐：
 - **Pages**：无限带宽和构建
 - **KV**：1 GB 存储，每天 100,000 次读取
 - **Functions**：每天 100,000 次请求
 
 **个人使用完全免费！**
 
-## 🌐 浏览器兼容性
+## 📦 项目结构
 
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-- 移动端浏览器
-
-## 🐛 常见问题
-
-### Q: 提示 "MEME_GALLERY_KV is not defined"
-
-**A:** 需要在 Pages 项目设置中绑定 KV namespace，变量名必须是 `MEME_GALLERY_KV`。
-
-### Q: 如何查看 KV 存储的数据？
-
-**A:** Cloudflare Dashboard → Workers & Pages → KV → 选择你的 namespace → 查看 key `memes`
-
-### Q: 可以迁移数据吗？
-
-**A:** 使用导出功能下载 JSON，在新项目中导入即可。
-
-### Q: 本地测试时 API 不工作？
-
-**A:** 使用 `npm run dev` 启动 Wrangler 开发服务器，而不是普通的 HTTP 服务器。
-
-### Q: `wrangler: command not found`
-
-**A:** 运行 `npm install -g wrangler` 安装 Wrangler CLI。
-
-### Q: 修改代码后没有生效？
-
-**A:** Wrangler 支持热重载，刷新浏览器即可。如果还是没有生效，重启 `npm run dev`。
-
-### Q: 端口被占用怎么办？
-
-**A:** 使用 `wrangler pages dev . --port 8080` 更改端口。
-
-## 💡 进阶技巧
-
-### 自定义域名
-
-Pages 设置 → Custom domains → 添加你的域名
-
-### 查看 KV 数据
-
-```bash
-# 列出所有 key
-wrangler kv:key list --namespace-id=YOUR_KV_ID
-
-# 查看 memes 数据
-wrangler kv:key get memes --namespace-id=YOUR_KV_ID
+```
+meme-gallery/
+├── index.html              # 前端页面
+├── style.css               # 样式文件
+├── app.js                  # 前端逻辑
+├── functions/              # Pages Functions API
+│   └── api/
+│       ├── memes.js        # 表情包增删查
+│       ├── upload.js       # GitHub 图床上传
+│       ├── verify-key.js   # 管理密钥验证
+│       └── memes/
+│           ├── [id].js     # 删除单个
+│           ├── search.js   # 搜索
+│           ├── export.js   # 导出
+│           ├── import.js   # 导入（需权限）
+│           └── clear.js    # 清空（需权限）
+├── package.json
+└── README.md
 ```
 
-### 调试技巧
+## 🔧 技术栈
 
-1. **查看 Functions 日志**：Wrangler 终端会显示所有 API 请求
-2. **浏览器开发者工具**：Network 面板查看 API 请求和响应
-3. **添加调试日志**：在 `functions/api/` 文件中添加 `console.log()`
+- **前端**：HTML5 + CSS3 + Vanilla JavaScript
+- **后端**：Cloudflare Pages Functions (Workers)
+- **存储**：Cloudflare KV + GitHub
+- **特性**：零配置、一键部署、响应式设计
 
-### 推荐工作流
+## 📝 重要提示
 
-```bash
-# 1. 本地开发和测试
-npm install
-npm run dev
-# 测试所有功能...
+⚠️ **必须配置**
+- KV Namespace 绑定：`MEME_GALLERY_KV`
 
-# 2. 提交代码
-git add .
-git commit -m "Feature: 新功能"
-git push
+⚙️ **可选配置**
+- GitHub 图床：`GITHUB_TOKEN`、`GITHUB_REPO`
+- 管理保护：`ADMIN_KEY`（强烈推荐）
 
-# 3. Cloudflare Pages 自动部署
-# 在 Dashboard 确认 KV 已绑定
-
-# 4. 访问生产环境测试
-# https://your-site.pages.dev
-```
-
-## 📝 注意事项
-
-1. **KV 变量名必须是 `MEME_GALLERY_KV`**（区分大小写）
-2. **必须包含 `functions` 文件夹**，这是 API 所在位置
-3. **不需要任何配置文件**，Pages Functions 自动识别
-4. **建议定期导出数据**作为备份
-5. 绑定 KV 后等待几秒钟生效
+🔐 **安全建议**
+- 使用强随机密码作为 `ADMIN_KEY`
+- 不要在公开场合分享 GitHub Token
+- 定期导出数据备份
+- 管理权限每次刷新后需重新验证
 
 ## 🤝 贡献
 

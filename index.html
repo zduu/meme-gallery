@@ -60,6 +60,19 @@
         </div>
     </div>
 
+    <!-- 分类标签 -->
+    <nav class="category-tabs">
+        <button class="category-tab active" data-category="all">
+            全部 <span class="count" id="countAll">0</span>
+        </button>
+        <button class="category-tab" data-category="link">
+            链接添加 <span class="count" id="countLink">0</span>
+        </button>
+        <button class="category-tab" data-category="upload">
+            本地上传 <span class="count" id="countUpload">0</span>
+        </button>
+    </nav>
+
     <!-- 表情包画廊 -->
     <main class="gallery-container">
         <div id="gallery" class="masonry-grid">
@@ -81,22 +94,66 @@
                 <button class="modal-close" id="addModalClose">✕</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label>图片链接</label>
-                    <textarea
-                        id="urlInput"
-                        placeholder="粘贴图片链接，支持三种格式：&#10;&#10;• 纯链接：https://example.com/image.gif&#10;• Markdown：![](https://example.com/image.gif)&#10;• HTML：<img src='https://example.com/image.gif'>"
-                        rows="5"
-                    ></textarea>
+                <!-- 添加方式切换 -->
+                <div class="add-mode-tabs">
+                    <button class="add-mode-tab active" data-mode="link">
+                        🔗 添加链接
+                    </button>
+                    <button class="add-mode-tab" data-mode="upload">
+                        📤 上传图片
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label>名称（可选）</label>
-                    <input
-                        type="text"
-                        id="nameInput"
-                        placeholder="为表情包起个名字"
-                    >
+
+                <!-- 链接添加模式 -->
+                <div id="linkMode" class="add-mode-content">
+                    <div class="form-group">
+                        <label>图片链接</label>
+                        <textarea
+                            id="urlInput"
+                            placeholder="粘贴图片链接，支持三种格式：&#10;&#10;• 纯链接：https://example.com/image.gif&#10;• Markdown：![](https://example.com/image.gif)&#10;• HTML：<img src='https://example.com/image.gif'>"
+                            rows="5"
+                        ></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>名称（可选）</label>
+                        <input
+                            type="text"
+                            id="nameInput"
+                            placeholder="为表情包起个名字"
+                        >
+                    </div>
                 </div>
+
+                <!-- 上传图片模式 -->
+                <div id="uploadMode" class="add-mode-content hidden">
+                    <div class="form-group">
+                        <label>选择图片</label>
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-icon">📁</div>
+                            <p>点击选择或拖拽图片到此处</p>
+                            <p class="upload-hint">支持 JPG、PNG、GIF、WEBP 格式</p>
+                            <input
+                                type="file"
+                                id="imageInput"
+                                accept="image/*"
+                                style="display: none;"
+                            >
+                        </div>
+                        <div id="imagePreview" class="image-preview hidden">
+                            <img id="previewImg" src="" alt="预览">
+                            <button class="preview-remove" id="removePreview">✕</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>名称（可选）</label>
+                        <input
+                            type="text"
+                            id="uploadNameInput"
+                            placeholder="为表情包起个名字"
+                        >
+                    </div>
+                </div>
+
                 <div id="addMessage" class="message"></div>
             </div>
             <div class="modal-footer">
@@ -173,7 +230,8 @@
                         </svg>
                         <span>导出数据</span>
                     </button>
-                    <button id="importBtn" class="menu-btn">
+                    <!-- 导入和清空按钮默认隐藏，需要通过 URL 参数显示 -->
+                    <button id="importBtn" class="menu-btn hidden">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="17 8 12 3 7 8"></polyline>
@@ -181,7 +239,7 @@
                         </svg>
                         <span>导入数据</span>
                     </button>
-                    <button id="clearAllBtn" class="menu-btn menu-btn-danger">
+                    <button id="clearAllBtn" class="menu-btn menu-btn-danger hidden">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>

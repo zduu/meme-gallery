@@ -152,10 +152,65 @@ body {
     background: rgba(0, 0, 0, 0.05);
 }
 
+/* ========== 分类标签 ========== */
+
+.category-tabs {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    z-index: 98;
+    box-shadow: var(--shadow-sm);
+}
+
+.category-tab {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.category-tab:hover {
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+.category-tab.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.category-tab .count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.category-tab:not(.active) .count {
+    background: var(--bg-color);
+    color: var(--text-secondary);
+}
+
 /* ========== 画廊容器 ========== */
 
 .gallery-container {
-    padding-top: 80px;
+    padding-top: 130px;  /* 60px header + 50px category tabs + 20px spacing */
     padding-bottom: 40px;
     max-width: 1400px;
     margin: 0 auto;
@@ -488,6 +543,126 @@ body {
 }
 
 /* ========== 表单 ========== */
+
+.add-mode-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    background: var(--bg-color);
+    padding: 4px;
+    border-radius: 10px;
+}
+
+.add-mode-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.add-mode-tab:hover {
+    color: var(--text-color);
+}
+
+.add-mode-tab.active {
+    background: white;
+    color: var(--primary-color);
+    box-shadow: var(--shadow-sm);
+}
+
+.add-mode-content {
+    display: block;
+}
+
+.add-mode-content.hidden {
+    display: none;
+}
+
+.upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bg-color);
+}
+
+.upload-area:hover {
+    border-color: var(--primary-color);
+    background: #f8f9ff;
+}
+
+.upload-area.dragover {
+    border-color: var(--primary-color);
+    background: #f0f1ff;
+}
+
+.upload-icon {
+    font-size: 3rem;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.upload-area p {
+    color: var(--text-color);
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.upload-hint {
+    color: var(--text-secondary);
+    font-size: 0.85rem !important;
+}
+
+.image-preview {
+    margin-top: 16px;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+}
+
+.image-preview.hidden {
+    display: none;
+}
+
+.image-preview img {
+    width: 100%;
+    display: block;
+    max-height: 300px;
+    object-fit: contain;
+    background: #f8fafc;
+}
+
+.preview-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    font-size: 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview-remove:hover {
+    background: var(--danger-color);
+    transform: scale(1.1);
+}
 
 .form-group {
     margin-bottom: 20px;
