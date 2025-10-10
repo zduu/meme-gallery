@@ -16,7 +16,7 @@ class MemeGallery {
         this.allTags = new Set();  // 所有标签集合
         this.pageSize = 50;  // 每页显示数量
         this.currentPage = 1;  // 当前页码
-        this.copyFormatOptions = ['raw', 'markdown', 'html', 'og'];  // 支持的复制格式
+        this.copyFormatOptions = ['raw', 'markdown', 'html', 'og', 'image'];  // 支持的复制格式
         this.copyFormat = this.loadCopyFormatPreference();  // 当前复制格式
         this.errorPlaceholder = this.generateErrorPlaceholder();  // 图片加载失败占位
         this.init();
@@ -200,6 +200,13 @@ class MemeGallery {
         }
     }
 
+    isSafariOrIOS() {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua);
+        const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua);
+        return isIOS || isSafari;
+    }
+
     // 复制用首选链接：
     // - GitHub 原始链接转换为 jsDelivr 以提升可用性
     // - 其他来源返回原始链接（不使用代理参数）
@@ -316,6 +323,8 @@ class MemeGallery {
                 return 'Markdown';
             case 'html':
                 return 'HTML';
+            case 'image':
+                return '图片/动图';
             case 'og':
                 return '分享卡片';
             case 'raw':
@@ -330,6 +339,8 @@ class MemeGallery {
                 return 'MD';
             case 'html':
                 return 'HT';
+            case 'image':
+                return 'IMG';
             case 'og':
                 return 'OG';
             case 'raw':
@@ -462,24 +473,162 @@ class MemeGallery {
     }
 
     async copyImageToClipboard(url) {
-        if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        if (!navigator.clipboard) {
             return { success: false, unsupported: true };
         }
 
-        try {
-            const response = await fetch(url, { mode: 'cors', cache: 'no-store' });
-            if (!response.ok) {
-                throw new Error(`获取图片失败: ${response.status}`);
+        // 1) 尝试直接写入原图（若浏览器支持 ClipboardItem）
+        if (typeof ClipboardItem !== 'undefined') {
+            try {
+                const blob = await this.fetchImageBlob(url);
+                const type = blob.type || 'image/png';
+                const item = new ClipboardItem({ [type]: blob });
+                await navigator.clipboard.write([item]);
+                return { success: true };
+            } catch (e1) {
+                console.warn('直接写入图片失败，尝试转为 PNG:', e1);
+                // 2) 将图片转为 PNG 再写入（GIF 会失去动画）
+                try {
+                    const pngBlob = await this.convertImageToPngBlob(url);
+                    if (pngBlob) {
+                        const item = new ClipboardItem({ 'image/png': pngBlob });
+                        await navigator.clipboard.write([item]);
+                        return { success: true, downgraded: true };
+                    }
+                } catch (e2) {
+                    console.warn('转 PNG 写入失败:', e2);
+                }
             }
-            const blob = await response.blob();
-            const mimeType = blob.type || 'image/png';
-            const clipboardItem = new ClipboardItem({ [mimeType]: blob });
-            await navigator.clipboard.write([clipboardItem]);
+        }
+
+        // 3) 退化方案：使用 contenteditable + execCommand 复制 <img>
+        try {
+            const ok = await this.copyImageViaEditable(url);
+            if (ok) return { success: true, viaEditable: true };
+        } catch (e3) {
+            console.warn('editable 复制失败:', e3);
+        }
+
+        return { success: false };
+    }
+
+    async fetchImageBlob(url, timeoutMs = 2500) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, { mode: 'cors', cache: 'no-store', signal: controller.signal }).catch((e) => {
+            throw e;
+        });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error(`获取图片失败: ${res.status}`);
+        return await res.blob();
+    }
+
+    async convertImageToPngBlob(srcOrUrl) {
+        return new Promise(async (resolve) => {
+            try {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth;
+                        canvas.height = img.naturalHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((blob) => resolve(blob), 'image/png');
+                    } catch (err) {
+                        console.error('canvas 转 PNG 失败:', err);
+                        resolve(null);
+                    }
+                };
+                img.onerror = () => resolve(null);
+                img.src = srcOrUrl;
+            } catch (err) {
+                resolve(null);
+            }
+        });
+    }
+
+    async copyImageViaEditable(url) {
+        return new Promise((resolve) => {
+            try {
+                const wrapper = document.createElement('div');
+                wrapper.contentEditable = 'true';
+                wrapper.style.position = 'fixed';
+                wrapper.style.left = '-9999px';
+                wrapper.style.top = '0';
+                wrapper.style.width = '1px';
+                wrapper.style.height = '1px';
+                wrapper.style.opacity = '0';
+
+                const img = document.createElement('img');
+                img.src = url;
+                wrapper.appendChild(img);
+                document.body.appendChild(wrapper);
+
+                img.onload = () => {
+                    const range = document.createRange();
+                    range.selectNodeContents(wrapper);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    const ok = document.execCommand('copy');
+                    sel.removeAllRanges();
+                    document.body.removeChild(wrapper);
+                    resolve(!!ok);
+                };
+                img.onerror = () => {
+                    document.body.removeChild(wrapper);
+                    resolve(false);
+                };
+            } catch (err) {
+                resolve(false);
+            }
+        });
+    }
+
+    async copyBlobToClipboard(blob) {
+        // Safari / iOS 对图片写入剪贴板几乎不支持，直接判定为不支持以避免长时间等待
+        if (this.isSafariOrIOS()) {
+            return { success: false, unsupported: true };
+        }
+        if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+            return { success: false, unsupported: true };
+        }
+        try {
+            const type = blob.type || 'image/png';
+            const item = new ClipboardItem({ [type]: blob });
+            await navigator.clipboard.write([item]);
             return { success: true };
         } catch (error) {
-            console.error('复制图片失败:', error);
             return { success: false, error };
         }
+    }
+
+    async shareFileIfSupported(blob, filename = 'meme') {
+        try {
+            const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'Meme', text: '' });
+                return { success: true };
+            }
+            return { success: false };
+        } catch (error) {
+            return { success: false };
+        }
+    }
+
+    async downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 0);
     }
 
     resolveMemeFromButton(button) {
@@ -519,6 +668,67 @@ class MemeGallery {
         }
 
         const label = this.getCopyFormatLabel(this.copyFormat);
+
+        if (this.copyFormat === 'image') {
+            let sources = this.buildImageSources(meme.url);
+            // 限制尝试源数量，优先代理+原始，减少等待
+            sources = sources.slice(0, 2);
+            for (const src of sources) {
+                try {
+                    const blob = await this.fetchImageBlob(src, 2500);
+                    const mime = (blob.type || '').toLowerCase();
+
+                    // Safari / iOS：统一走系统分享/下载，避免剪贴板失败
+                    if (this.isSafariOrIOS()) {
+                        const filename = `${(meme.name || 'meme')}${mime === 'image/gif' ? '.gif' : (mime === 'image/png' ? '.png' : '.jpg')}`;
+                        const shared = await this.shareFileIfSupported(blob, filename);
+                        if (shared.success) {
+                            return { success: true, message: '已唤起系统分享，请选择微信/QQ 发送', type: 'share' };
+                        }
+                        await this.downloadBlob(blob, filename);
+                        return { success: true, message: '已下载图片，请在微信/QQ 从相册发送', type: 'download' };
+                    }
+
+                    // 其它浏览器：优先尝试剪贴板
+                    const wrote = await this.copyBlobToClipboard(blob);
+                    if (wrote.success) {
+                        return { success: true, message: mime === 'image/gif' ? 'GIF 已复制，粘贴到微信 / QQ 试试' : '图片已复制，可直接粘贴到微信 / QQ', type: 'image' };
+                    }
+
+                    // GIF 尽量保持动画：尝试系统分享或下载
+                    if (mime === 'image/gif') {
+                        const shared = await this.shareFileIfSupported(blob, `${(meme.name || 'meme')}.gif`);
+                        if (shared.success) {
+                            return { success: true, message: '已唤起系统分享，选择微信/QQ 发送 GIF', type: 'share' };
+                        }
+                        await this.downloadBlob(blob, `${(meme.name || 'meme')}.gif`);
+                        return { success: true, message: '已下载 GIF，请在微信/QQ 从相册发送', type: 'download' };
+                    }
+
+                    // 非 GIF：尝试转成 PNG 再写入
+                    // 使用刚才获取的 blob 避免二次网络请求
+                    const objectUrl = URL.createObjectURL(blob);
+                    const pngBlob = await this.convertImageToPngBlob(objectUrl);
+                    URL.revokeObjectURL(objectUrl);
+                    if (pngBlob) {
+                        const wrotePng = await this.copyBlobToClipboard(pngBlob);
+                        if (wrotePng.success) {
+                            return { success: true, message: '图片已复制为 PNG，可直接粘贴', type: 'image', downgraded: true };
+                        }
+                    }
+                } catch (err) {
+                    // 尝试下一个源
+                }
+            }
+
+            // 全部失败：自动回退复制链接
+            const text = this.getCopyPreferredUrl(meme.url);
+            const textResult = await this.copyTextToClipboard(text);
+            if (textResult.success) {
+                return { success: true, message: '当前环境不支持复制图片，已自动复制链接', type: 'text', fallback: true };
+            }
+            return { success: false, message: '复制失败，请手动复制' };
+        }
 
         if (this.copyFormat === 'og') {
             const shareUrl = this.getShareUrl(meme);
@@ -1460,6 +1670,8 @@ class MemeGallery {
             if (!btn.dataset.originalContent) {
                 btn.dataset.originalContent = btn.innerHTML;
             }
+            if (btn.dataset.copyListenerAttached === 'true') return;
+            btn.dataset.copyListenerAttached = 'true';
             btn.addEventListener('click', async (e) => {
                 const button = e.currentTarget;
                 if (button.dataset.copying === 'true') {
@@ -1475,6 +1687,7 @@ class MemeGallery {
                 }
 
                 const originalText = button.dataset.originalContent || button.innerHTML;
+                button.innerHTML = '⏳';
                 let success = false;
                 let message = '';
 
