@@ -16,6 +16,7 @@ class MemeGallery {
         this.allTags = new Set();  // 所有标签集合
         this.pageSize = 50;  // 每页显示数量
         this.currentPage = 1;  // 当前页码
+        this.errorPlaceholder = this.generateErrorPlaceholder();  // 图片加载失败占位
         this.init();
     }
 
@@ -36,8 +37,11 @@ class MemeGallery {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
                     const img = entry.target;
-                    if (img.dataset.src) {
-                        img.src = img.dataset.src;
+                    const dataSrc = img.dataset.src;
+                    if (dataSrc) {
+                        img.dataset.isPlaceholder = 'false';
+                        img.dataset.fallbackIndex = '0';
+                        img.src = dataSrc;
                         img.removeAttribute('data-src');
                         this.imageObserver.unobserve(img);
                     }
@@ -50,7 +54,11 @@ class MemeGallery {
     }
 
     observeImages() {
-        // 观察所有带 data-src 的图片
+        // 绑定事件处理器并观察所有带 data-src 的图片
+        document.querySelectorAll('.meme-image').forEach(img => {
+            this.attachImageHandlers(img);
+        });
+
         document.querySelectorAll('img[data-src]').forEach(img => {
             this.imageObserver.observe(img);
         });
@@ -60,17 +68,177 @@ class MemeGallery {
 
     // GitHub CDN 加速：将 raw.githubusercontent.com 转换为 jsDelivr CDN
     convertToGitHubCDN(url) {
-        // 匹配 https://raw.githubusercontent.com/username/repo/branch/path
-        const rawGitHubPattern = /^https:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)\/(.+)$/;
-        const match = url.match(rawGitHubPattern);
-
-        if (match) {
-            const [, username, repo, branch, path] = match;
-            // 转换为 jsDelivr CDN: https://cdn.jsdelivr.net/gh/username/repo@branch/path
-            return `https://cdn.jsdelivr.net/gh/${username}/${repo}@${branch}/${path}`;
+        const info = this.getGitHubFileInfo(url);
+        if (!info) {
+            return url;
         }
 
-        return url;
+        const cdnUrl = this.buildGitHubUrl(info, 'jsdelivr');
+        return cdnUrl || url;
+    }
+
+    getGitHubFileInfo(url) {
+        try {
+            const parsed = new URL(url);
+            const host = parsed.hostname;
+            const pathname = parsed.pathname.replace(/^\/+/, '');
+
+            // raw.* domains
+            if (['raw.githubusercontent.com', 'raw.fastgit.org', 'raw.gitmirror.com'].includes(host)) {
+                const segments = pathname.split('/');
+                if (segments.length >= 4) {
+                    const [owner, repo, ref, ...rest] = segments;
+                    return { owner, repo, ref, path: rest.join('/') };
+                }
+            }
+
+            // jsDelivr
+            if (host === 'cdn.jsdelivr.net' && pathname.startsWith('gh/')) {
+                const trimmed = pathname.slice(3); // remove leading "gh/"
+                const segments = trimmed.split('/');
+                if (segments.length >= 3) {
+                    const owner = segments[0];
+                    const repoAndRef = segments[1];
+                    const [repo, ref] = repoAndRef.split('@');
+                    const path = segments.slice(2).join('/');
+                    if (owner && repo && ref && path) {
+                        return { owner, repo, ref, path };
+                    }
+                }
+            }
+
+            // github.com blob
+            if (host === 'github.com') {
+                const segments = pathname.split('/');
+                const blobIndex = segments.indexOf('blob');
+                if (blobIndex !== -1 && blobIndex >= 2 && segments.length > blobIndex + 1) {
+                    const owner = segments[0];
+                    const repo = segments[1];
+                    const ref = segments[blobIndex + 1];
+                    const path = segments.slice(blobIndex + 2).join('/');
+                    if (owner && repo && ref && path) {
+                        return { owner, repo, ref, path };
+                    }
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.warn('无法解析 GitHub 链接:', url, error);
+            return null;
+        }
+    }
+
+    buildGitHubUrl(info, provider) {
+        if (!info) return null;
+        const { owner, repo, ref, path } = info;
+
+        switch (provider) {
+            case 'jsdelivr':
+                return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${path}`;
+            case 'fastgit':
+                return `https://raw.fastgit.org/${owner}/${repo}/${ref}/${path}`;
+            case 'gitmirror':
+                return `https://raw.gitmirror.com/${owner}/${repo}/${ref}/${path}`;
+            case 'raw':
+                return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+            default:
+                return null;
+        }
+    }
+
+    buildImageSources(url) {
+        const sources = new Set();
+        const info = this.getGitHubFileInfo(url);
+
+        if (info) {
+            const cdnUrl = this.buildGitHubUrl(info, 'jsdelivr');
+            const fastgitUrl = this.buildGitHubUrl(info, 'fastgit');
+            const gitmirrorUrl = this.buildGitHubUrl(info, 'gitmirror');
+            const rawUrl = this.buildGitHubUrl(info, 'raw');
+
+            [cdnUrl, fastgitUrl, gitmirrorUrl, rawUrl].forEach(candidate => {
+                if (candidate) {
+                    sources.add(candidate);
+                }
+            });
+        }
+
+        sources.add(url);
+
+        return Array.from(sources);
+    }
+
+    generateErrorPlaceholder() {
+        const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+                <rect width="400" height="300" fill="#f9fafb"/>
+                <text x="50%" y="50%" fill="#9ca3af" font-size="24" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">
+                    图片加载失败
+                </text>
+            </svg>
+        `;
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    }
+
+    attachImageHandlers(img) {
+        if (img.dataset.handlersAttached === 'true') {
+            return;
+        }
+
+        img.dataset.handlersAttached = 'true';
+
+        img.addEventListener('load', () => {
+            const skeleton = img.previousElementSibling;
+            if (skeleton) {
+                skeleton.style.display = 'none';
+            }
+            img.classList.add('loaded');
+            if (img.dataset.isPlaceholder === 'true') {
+                img.classList.add('error');
+            } else {
+                img.classList.remove('error');
+            }
+        });
+
+        img.addEventListener('error', () => {
+            this.handleImageError(img);
+        });
+    }
+
+    handleImageError(img) {
+        // 避免在占位图上重复触发
+        if (img.dataset.isPlaceholder === 'true') {
+            return;
+        }
+
+        const fallbackAttr = img.dataset.fallbacks || '';
+        const fallbackUrls = fallbackAttr ? fallbackAttr.split('||').filter(Boolean) : [];
+        const index = parseInt(img.dataset.fallbackIndex || '0', 10);
+
+        if (index < fallbackUrls.length) {
+            img.dataset.fallbackIndex = String(index + 1);
+            const nextUrl = fallbackUrls[index];
+            img.src = nextUrl;
+            return;
+        }
+
+        this.markImageAsFailed(img);
+    }
+
+    markImageAsFailed(img) {
+        const skeleton = img.previousElementSibling;
+        if (skeleton) {
+            skeleton.style.display = 'none';
+        }
+
+        img.dataset.isPlaceholder = 'true';
+        img.classList.add('error');
+        img.alt = '图片加载失败';
+
+        if (this.errorPlaceholder) {
+            img.src = this.errorPlaceholder;
+        }
     }
 
     extractImageUrl(input) {
@@ -372,9 +540,10 @@ class MemeGallery {
 
             if (result.success) {
                 await this.loadFromRemote();
-                const { total, new: newCount, existing } = result.data;
+                const { total, new: newCount, existing, removed } = result.data;
+                const removedInfo = removed > 0 ? `，已删除 ${removed} 张` : '';
                 this.showToast(
-                    `扫描完成！发现 ${total} 张图片，新增 ${newCount} 张，已存在 ${existing} 张`,
+                    `扫描完成！发现 ${total} 张图片，新增 ${newCount} 张，已存在 ${existing} 张${removedInfo}`,
                     'success'
                 );
                 this.closeModal('menuModal');
@@ -598,8 +767,13 @@ class MemeGallery {
             ? `<div class="meme-tags">${tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
             : '';
 
-        // 使用 CDN 加速 GitHub 图片
-        const imageUrl = this.convertToGitHubCDN(meme.url);
+        // 根据 GitHub 链接生成多源地址，降低加载失败概率
+        const imageSources = this.buildImageSources(meme.url);
+        const [primarySource, ...fallbackSources] = imageSources;
+        const dataSrc = this.escapeHtml(primarySource || meme.url);
+        const fallbackAttr = fallbackSources.length > 0
+            ? ` data-fallbacks="${this.escapeHtml(fallbackSources.join('||'))}"`
+            : '';
 
         return `
             <div class="meme-card">
@@ -607,11 +781,10 @@ class MemeGallery {
                     <!-- 骨架屏占位 -->
                     <div class="image-skeleton"></div>
                     <img
-                        data-src="${this.escapeHtml(imageUrl)}"
+                        data-src="${dataSrc}"
+                        data-fallback-index="0"${fallbackAttr}
                         alt="${this.escapeHtml(meme.name)}"
                         class="meme-image"
-                        onload="this.previousElementSibling.style.display='none'; this.classList.add('loaded')"
-                        onerror="this.previousElementSibling.style.display='none'; this.className='meme-image error'; this.alt='图片加载失败'"
                     >
                     <div class="meme-overlay">
                         <div class="meme-name">${this.escapeHtml(meme.name)}</div>

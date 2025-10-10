@@ -85,10 +85,11 @@ body {
     color: var(--text-color);
     border-radius: 8px;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
+    text-decoration: none;
 }
 
 .icon-btn:hover {
@@ -394,11 +395,8 @@ body {
 
 .meme-image.error {
     min-height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    object-fit: contain;
+    background: #f4f4f5;
 }
 
 /* 悬停覆盖层 */

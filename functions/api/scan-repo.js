@@ -71,11 +71,35 @@ export async function onRequestPost(context) {
     const memesJson = await MEME_GALLERY_KV.get('memes');
     const existingMemes = memesJson ? JSON.parse(memesJson) : [];
 
-    // 找出现有的 URL
-    const existingUrls = new Set(existingMemes.map(m => m.url));
+    // 使用 github_path 对比仓库现状，剔除已删除的图片
+    const imageByPath = new Map(foundImages.map((img) => [img.path, img]));
+    const preservedMemes = [];
+    let removedCount = 0;
+
+    for (const meme of existingMemes) {
+      if (!meme.github_path) {
+        preservedMemes.push(meme);
+        continue;
+      }
+
+      const matchingImage = imageByPath.get(meme.github_path);
+      if (!matchingImage) {
+        removedCount += 1;
+        continue;
+      }
+
+      preservedMemes.push({
+        ...meme,
+        url: matchingImage.url,
+        github_sha: matchingImage.sha
+      });
+    }
+
+    // 找出现有的 URL，避免重复插入
+    const existingUrls = new Set(preservedMemes.map((m) => m.url));
 
     // 过滤出新图片
-    const newImages = foundImages.filter(img => !existingUrls.has(img.url));
+    const newImages = foundImages.filter((img) => !existingUrls.has(img.url));
 
     // 添加新图片到 KV
     const newMemes = newImages.map((img, index) => ({
@@ -88,10 +112,8 @@ export async function onRequestPost(context) {
       github_sha: img.sha
     }));
 
-    if (newMemes.length > 0) {
-      const updatedMemes = [...newMemes, ...existingMemes];
-      await MEME_GALLERY_KV.put('memes', JSON.stringify(updatedMemes));
-    }
+    const updatedMemes = [...newMemes, ...preservedMemes];
+    await MEME_GALLERY_KV.put('memes', JSON.stringify(updatedMemes));
 
     return new Response(
       JSON.stringify({
@@ -100,6 +122,7 @@ export async function onRequestPost(context) {
           total: foundImages.length,
           new: newMemes.length,
           existing: foundImages.length - newMemes.length,
+          removed: removedCount,
           images: newMemes
         }
       }),

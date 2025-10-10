@@ -24,7 +24,7 @@
 ### ☁️ 数据安全
 - **云端存储**：Cloudflare KV 持久化存储
 - **跨设备同步**：导出/导入 JSON 数据
-- **管理保护**：默认密钥 `meme-gallery-2024`，可自定义
+- **管理保护**：默认密钥 `meme-gallery-2025`，可自定义
 - **智能导出**：自动将上传图片转换为链接格式
 - **频率限制**：上传间隔 3 秒，防止 API 滥用
 
@@ -48,7 +48,7 @@
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/meme-gallery.git
+git remote add origin https://github.com/zduu/meme-gallery.git
 git push -u origin main
 ```
 
@@ -75,11 +75,11 @@ git push -u origin main
 | `GITHUB_TOKEN` | GitHub 图床上传 | `ghp_xxxxxxxxxxxx` | - |
 | `GITHUB_REPO` | GitHub 仓库 | `username/repo-name` | - |
 | `GITHUB_BRANCH` | GitHub 分支 | `main` | `main` |
-| `ADMIN_KEY` | 管理功能保护 | `my-secret-2024` | `meme-gallery-2024` |
+| `ADMIN_KEY` | 管理功能保护 | `my-secret-2025` | `meme-gallery-2025` |
 
 **配置说明：**
 - **GITHUB_TOKEN**：访问 [GitHub Settings](https://github.com/settings/tokens) 生成，需要 `repo` 权限
-- **ADMIN_KEY**：自定义强密码，默认为 `meme-gallery-2024`，**强烈建议修改**
+- **ADMIN_KEY**：自定义强密码，默认为 `meme-gallery-2025`，**强烈建议修改**
 
 #### 4. 完成
 
@@ -125,7 +125,7 @@ HTML：<img src="https://example.com/image.gif">
 
 **导入/清空（需管理权限）**：
 1. 在前端页面点击 5 次 "🎨 Meme Gallery" 标题
-2. 输入管理密钥进行验证（默认密钥：`meme-gallery-2024`）
+2. 输入管理密钥进行验证（默认密钥：`meme-gallery-2025`）
 3. 验证成功后显示导入和清空按钮
 4. 管理权限在当前会话期间有效（刷新页面后需重新验证）
 
@@ -211,7 +211,7 @@ python3 -m http.server 8000
 
 **A:** 这些功能需要管理权限：
 1. 在前端页面点击 5 次 "🎨 Meme Gallery" 标题
-2. 在弹出的验证框中输入密钥（默认：`meme-gallery-2024`）
+2. 在弹出的验证框中输入密钥（默认：`meme-gallery-2025`）
 3. 验证成功后导入、清空和扫描按钮会显示
 4. 管理权限在当前会话有效，刷新页面需重新验证
 5. 建议在 Cloudflare Pages 设置中配置自定义 `ADMIN_KEY`
@@ -249,7 +249,7 @@ python3 -m http.server 8000
 **A:** 访问 Cloudflare Dashboard：
 - Pages → 你的项目 → Settings → Environment variables
 - 查看或修改 `ADMIN_KEY` 的值
-- 如果未设置，默认密钥是 `meme-gallery-2024`
+- 如果未设置，默认密钥是 `meme-gallery-2025`
 </details>
 
 <details>
@@ -271,22 +271,24 @@ Cloudflare 免费套餐：
 
 ```
 meme-gallery/
-├── index.html              # 前端页面
-├── style.css               # 样式文件
-├── app.js                  # 前端逻辑
-├── functions/              # Pages Functions API
+├── index.html                 # 前端页面骨架
+├── style.css                  # UI 样式
+├── app.js                     # 前端交互逻辑
+├── functions/                 # Cloudflare Pages Functions
 │   └── api/
-│       ├── memes.js        # 表情包增删查
-│       ├── upload.js       # GitHub 图床上传（频率限制）
-│       ├── verify-key.js   # 管理密钥验证
-│       ├── scan-repo.js    # 扫描仓库图片
+│       ├── memes.js           # 表情包列表增删查
+│       ├── scan-repo.js       # 仓库图片扫描同步
+│       ├── upload.js          # 上传图片到 GitHub
+│       ├── verify-key.js      # 管理员密钥校验
 │       └── memes/
-│           ├── [id].js     # 删除单个
-│           ├── search.js   # 搜索
-│           ├── export.js   # 导出
-│           ├── import.js   # 导入（需权限）
-│           └── clear.js    # 清空（需权限）
+│           ├── [id].js        # 删除单个表情包
+│           ├── clear.js       # 清空全部数据
+│           ├── export.js      # 导出数据
+│           ├── import.js      # 导入数据
+│           ├── search.js      # 搜索接口
+│           └── tags.js        # 标签管理
 ├── package.json
+├── package-lock.json
 └── README.md
 ```
 
@@ -304,7 +306,7 @@ meme-gallery/
 
 ⚙️ **可选配置**
 - GitHub 图床：`GITHUB_TOKEN`、`GITHUB_REPO`
-- 管理保护：`ADMIN_KEY`（默认：`meme-gallery-2024`，**强烈建议修改**）
+- 管理保护：`ADMIN_KEY`（默认：`meme-gallery-2025`，**强烈建议修改**）
 
 🔐 **安全建议**
 - 使用强随机密码作为 `ADMIN_KEY`（不要使用默认密钥）
