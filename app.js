@@ -16,6 +16,8 @@ class MemeGallery {
         this.allTags = new Set();  // 所有标签集合
         this.pageSize = 50;  // 每页显示数量
         this.currentPage = 1;  // 当前页码
+        this.copyFormatOptions = ['raw', 'markdown', 'html', 'og'];  // 支持的复制格式
+        this.copyFormat = this.loadCopyFormatPreference();  // 当前复制格式
         this.errorPlaceholder = this.generateErrorPlaceholder();  // 图片加载失败占位
         this.init();
     }
@@ -239,6 +241,298 @@ class MemeGallery {
         if (this.errorPlaceholder) {
             img.src = this.errorPlaceholder;
         }
+    }
+
+    // ========== 复制格式控制 ==========
+
+    loadCopyFormatPreference() {
+        try {
+            const stored = localStorage.getItem('copyFormat');
+            if (stored && this.copyFormatOptions.includes(stored)) {
+                return stored;
+            }
+        } catch (error) {
+            console.warn('无法读取复制格式偏好:', error);
+        }
+        return 'raw';
+    }
+
+    saveCopyFormatPreference(format) {
+        try {
+            localStorage.setItem('copyFormat', format);
+        } catch (error) {
+            console.warn('无法保存复制格式偏好:', error);
+        }
+    }
+
+    getCopyFormatLabel(format) {
+        switch (format) {
+            case 'markdown':
+                return 'Markdown';
+            case 'html':
+                return 'HTML';
+            case 'og':
+                return '分享卡片';
+            case 'raw':
+            default:
+                return '原始链接';
+        }
+    }
+
+    getCopyFormatIndicator(format) {
+        switch (format) {
+            case 'markdown':
+                return 'MD';
+            case 'html':
+                return 'HT';
+            case 'og':
+                return 'OG';
+            case 'raw':
+            default:
+                return '链';
+        }
+    }
+
+    updateCopyFormatDisplay() {
+        const toggleText = document.getElementById('copyFormatToggleText');
+        if (toggleText) {
+            toggleText.textContent = this.getCopyFormatIndicator(this.copyFormat);
+        }
+
+        const menu = document.getElementById('copyFormatMenu');
+        if (menu) {
+            menu.querySelectorAll('.copy-format-option').forEach(option => {
+                option.classList.toggle('active', option.dataset.format === this.copyFormat);
+            });
+        }
+
+        const toggleBtn = document.getElementById('copyFormatToggle');
+        if (toggleBtn) {
+            const label = this.getCopyFormatLabel(this.copyFormat);
+            toggleBtn.setAttribute('aria-label', `当前复制格式：${label}，点击切换`);
+            toggleBtn.setAttribute('title', `当前格式：${label}`);
+        }
+    }
+
+    setCopyFormat(format) {
+        if (!this.copyFormatOptions.includes(format)) {
+            return;
+        }
+
+        if (format === this.copyFormat) {
+            this.updateCopyFormatDisplay();
+            this.closeCopyFormatMenu();
+            return;
+        }
+
+        this.copyFormat = format;
+        this.saveCopyFormatPreference(format);
+        this.updateCopyFormatDisplay();
+        this.closeCopyFormatMenu();
+
+        this.showToast(`复制格式已切换为：${this.getCopyFormatLabel(format)}`, 'success');
+    }
+
+    closeCopyFormatMenu() {
+        const menu = document.getElementById('copyFormatMenu');
+        if (menu && !menu.classList.contains('hidden')) {
+            menu.classList.add('hidden');
+        }
+    }
+
+    getShareUrl(meme) {
+        if (!meme || (!meme.id && meme.id !== 0)) {
+            return '';
+        }
+
+        try {
+            const origin = window.location.origin;
+            const id = encodeURIComponent(meme.id);
+            return `${origin}/share/${id}`;
+        } catch (error) {
+            console.error('生成分享链接失败:', error);
+            return '';
+        }
+    }
+
+    composeCopyText(meme) {
+        if (!meme || !meme.url) {
+            return '';
+        }
+
+        if (this.copyFormat === 'og') {
+            return this.getShareUrl(meme);
+        }
+
+        const sources = this.buildImageSources(meme.url);
+        const primaryUrl = sources[0] || meme.url;
+        const decodeMap = {
+            '&apos;': '\'',
+            '&#39;': '\'',
+            '&quot;': '"',
+            '&amp;': '&',
+            '&lt;': '<',
+            '&gt;': '>'
+        };
+        const rawName = (meme.name || 'meme').trim() || 'meme';
+        const name = rawName.replace(/&(apos|#39|quot|amp|lt|gt);/g, (match) => decodeMap[match] || match);
+        const markdownName = name
+            .replace(/\\/g, '\\\\')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/!/g, '\\!');
+        const alt = name.replace(/"/g, '&quot;');
+
+        switch (this.copyFormat) {
+            case 'markdown':
+                return `![${markdownName}](${primaryUrl})`;
+            case 'html':
+                return `<img src="${primaryUrl}" alt="${alt}">`;
+            case 'raw':
+            default:
+                return primaryUrl;
+        }
+    }
+
+    async copyTextToClipboard(text) {
+        if (!text) {
+            return { success: false };
+        }
+
+        let copySuccess = false;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            try {
+                await navigator.clipboard.writeText(text);
+                copySuccess = true;
+            } catch (error) {
+                console.error('Clipboard API 文本复制失败:', error);
+            }
+        }
+
+        if (!copySuccess) {
+            copySuccess = this.fallbackCopyText(text);
+        }
+
+        return { success: copySuccess };
+    }
+
+    async copyImageToClipboard(url) {
+        if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+            return { success: false, unsupported: true };
+        }
+
+        try {
+            const response = await fetch(url, { mode: 'cors', cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`获取图片失败: ${response.status}`);
+            }
+            const blob = await response.blob();
+            const mimeType = blob.type || 'image/png';
+            const clipboardItem = new ClipboardItem({ [mimeType]: blob });
+            await navigator.clipboard.write([clipboardItem]);
+            return { success: true };
+        } catch (error) {
+            console.error('复制图片失败:', error);
+            return { success: false, error };
+        }
+    }
+
+    resolveMemeFromButton(button) {
+        if (!button) return null;
+
+        const idAttr = button.dataset.id;
+        if (idAttr) {
+            const memeId = parseFloat(idAttr);
+            const existingMeme = this.memes.find(item => item.id === memeId);
+            if (existingMeme) {
+                return { ...existingMeme };
+            }
+        }
+
+        const memeData = button.dataset.meme;
+        if (memeData) {
+            try {
+                return JSON.parse(memeData);
+            } catch (error) {
+                console.error('解析表情数据失败:', error);
+            }
+        }
+
+        if (button.dataset.url) {
+            return {
+                url: button.dataset.url,
+                name: button.dataset.name || ''
+            };
+        }
+
+        return null;
+    }
+
+    async copyMemeContent(meme) {
+        if (!meme || !meme.url) {
+            return { success: false, message: '无法找到图片链接' };
+        }
+
+        const label = this.getCopyFormatLabel(this.copyFormat);
+
+        if (this.copyFormat === 'og') {
+            const shareUrl = this.getShareUrl(meme);
+            if (!shareUrl) {
+                return { success: false, message: '无法生成分享链接' };
+            }
+
+            const textResult = await this.copyTextToClipboard(shareUrl);
+            if (textResult.success) {
+                return {
+                    success: true,
+                    message: `${label} 已复制到剪贴板`,
+                    type: 'text'
+                };
+            }
+
+            return { success: false, message: '复制失败，请手动复制' };
+        }
+
+        if (this.copyFormat === 'raw') {
+            const sources = this.buildImageSources(meme.url);
+            if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+                for (const source of sources) {
+                    const result = await this.copyImageToClipboard(source);
+                    if (result.success) {
+                        return {
+                            success: true,
+                            message: '图片已复制，可直接粘贴到微信 / QQ',
+                            type: 'image'
+                        };
+                    }
+                    if (result.unsupported) {
+                        break;
+                    }
+                }
+            }
+
+            const text = sources[0] || meme.url;
+            const textResult = await this.copyTextToClipboard(text);
+            if (textResult.success) {
+                return {
+                    success: true,
+                    message: `${label} 已复制到剪贴板（图片复制受限，已降级为链接）`,
+                    type: 'text',
+                    fallback: true
+                };
+            }
+
+            return { success: false, message: '复制失败，请手动复制' };
+        }
+
+        const text = this.composeCopyText(meme);
+        const textResult = await this.copyTextToClipboard(text);
+        if (textResult.success) {
+            return { success: true, message: `${label} 已复制到剪贴板`, type: 'text' };
+        }
+
+        return { success: false, message: '复制失败，请手动复制' };
     }
 
     extractImageUrl(input) {
@@ -766,6 +1060,7 @@ class MemeGallery {
         const tagsHtml = tags.length > 0
             ? `<div class="meme-tags">${tags.map(tag => `<span class="tag">${this.escapeHtml(tag)}</span>`).join('')}</div>`
             : '';
+        const serializedMeme = JSON.stringify(meme).replace(/'/g, '&apos;');
 
         // 根据 GitHub 链接生成多源地址，降低加载失败概率
         const imageSources = this.buildImageSources(meme.url);
@@ -790,10 +1085,10 @@ class MemeGallery {
                         <div class="meme-name">${this.escapeHtml(meme.name)}</div>
                         ${tagsHtml}
                         <div class="meme-actions">
-                            <button class="meme-action-btn copy-btn" data-url="${this.escapeHtml(meme.url)}" onclick="event.stopPropagation()" title="复制链接">
+                            <button class="meme-action-btn copy-btn" data-id="${meme.id}" data-meme='${serializedMeme}' data-url="${this.escapeHtml(meme.url)}" onclick="event.stopPropagation()" title="复制（当前格式）">
                                 📋
                             </button>
-                            <button class="meme-action-btn tags-btn" data-meme='${JSON.stringify(meme).replace(/'/g, '&apos;')}' onclick="event.stopPropagation()" title="管理标签">
+                            <button class="meme-action-btn tags-btn" data-meme='${serializedMeme}' onclick="event.stopPropagation()" title="管理标签">
                                 🏷️
                             </button>
                             <button class="meme-action-btn delete-btn ${this.isAdmin ? '' : 'hidden'}" data-id="${meme.id}" onclick="event.stopPropagation()" title="删除">
@@ -872,6 +1167,41 @@ class MemeGallery {
 
         document.getElementById('sizeToggle').addEventListener('click', () => {
             this.openModal('sizeModal');
+        });
+
+        const copyFormatToggle = document.getElementById('copyFormatToggle');
+        const copyFormatMenu = document.getElementById('copyFormatMenu');
+
+        if (copyFormatToggle && copyFormatMenu) {
+            copyFormatToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                copyFormatMenu.classList.toggle('hidden');
+                this.updateCopyFormatDisplay();
+            });
+
+            copyFormatMenu.querySelectorAll('.copy-format-option').forEach(option => {
+                option.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const format = option.dataset.format;
+                    this.setCopyFormat(format);
+                });
+            });
+        }
+
+        document.addEventListener('click', (event) => {
+            if (!copyFormatMenu) return;
+            const target = event.target;
+            if ((copyFormatToggle && copyFormatToggle.contains && copyFormatToggle.contains(target)) ||
+                (copyFormatMenu.contains && copyFormatMenu.contains(target))) {
+                return;
+            }
+            this.closeCopyFormatMenu();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                this.closeCopyFormatMenu();
+            }
         });
 
         // 搜索栏
@@ -1092,57 +1422,60 @@ class MemeGallery {
                 document.getElementById('addBtn').click();
             }
         });
+
+        this.updateCopyFormatDisplay();
     }
 
     bindCardEvents() {
         // 复制链接
         document.querySelectorAll('.copy-btn').forEach(btn => {
+            if (!btn.dataset.originalContent) {
+                btn.dataset.originalContent = btn.innerHTML;
+            }
             btn.addEventListener('click', async (e) => {
-                const url = e.currentTarget.dataset.url;
-                let copySuccess = false;
+                const button = e.currentTarget;
+                if (button.dataset.copying === 'true') {
+                    return;
+                }
+                button.dataset.copying = 'true';
+
+                const memeForCopy = this.resolveMemeFromButton(button);
+                if (!memeForCopy) {
+                    this.showToast('无法获取表情信息', 'error');
+                    button.dataset.copying = 'false';
+                    return;
+                }
+
+                const originalText = button.dataset.originalContent || button.innerHTML;
+                let success = false;
+                let message = '';
 
                 try {
-                    // 优先使用 Clipboard API
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        await navigator.clipboard.writeText(url);
-                        copySuccess = true;
-                    } else {
-                        // 降级方案：使用传统的 execCommand
-                        copySuccess = this.fallbackCopyText(url);
-                    }
-
-                    if (copySuccess) {
-                        const originalText = e.currentTarget.innerHTML;
-                        e.currentTarget.innerHTML = '✅';
-                        e.currentTarget.classList.add('copied');
-
-                        this.showToast('链接已复制到剪贴板', 'success');
-
-                        setTimeout(() => {
-                            e.currentTarget.innerHTML = originalText;
-                            e.currentTarget.classList.remove('copied');
-                        }, 2000);
-                    } else {
-                        throw new Error('复制失败');
-                    }
-                } catch (err) {
-                    console.error('复制失败:', err);
-                    // 尝试降级方案
-                    if (!copySuccess && this.fallbackCopyText(url)) {
-                        const originalText = e.currentTarget.innerHTML;
-                        e.currentTarget.innerHTML = '✅';
-                        e.currentTarget.classList.add('copied');
-
-                        this.showToast('链接已复制到剪贴板', 'success');
-
-                        setTimeout(() => {
-                            e.currentTarget.innerHTML = originalText;
-                            e.currentTarget.classList.remove('copied');
-                        }, 2000);
-                    } else {
-                        this.showToast('复制失败，请手动复制', 'error');
-                    }
+                    const result = await this.copyMemeContent(memeForCopy);
+                    success = result.success;
+                    message = result.message || (result.success ? '复制成功' : '复制失败，请手动复制');
+                } catch (error) {
+                    console.error('复制处理失败:', error);
+                    success = false;
+                    message = '复制失败，请手动复制';
                 }
+
+                if (success) {
+                    button.innerHTML = '✅';
+                    button.classList.add('copied');
+                    this.showToast(message, 'success');
+
+                    setTimeout(() => {
+                        button.innerHTML = originalText;
+                        button.classList.remove('copied');
+                    }, 2000);
+                } else {
+                    this.showToast(message, 'error');
+                    button.innerHTML = originalText;
+                    button.classList.remove('copied');
+                }
+
+                button.dataset.copying = 'false';
             });
         });
 
@@ -1168,8 +1501,9 @@ class MemeGallery {
 
     fallbackCopyText(text) {
         // 降级复制方案：使用 textarea + execCommand
+        let textArea = null;
         try {
-            const textArea = document.createElement('textarea');
+            textArea = document.createElement('textarea');
             textArea.value = text;
 
             // 避免在页面上显示
@@ -1193,12 +1527,14 @@ class MemeGallery {
             textArea.setSelectionRange(0, 99999);
 
             const successful = document.execCommand('copy');
-            document.body.removeChild(textArea);
-
-            return successful;
+            return successful !== false;
         } catch (err) {
             console.error('降级复制方案失败:', err);
             return false;
+        } finally {
+            if (textArea && textArea.parentNode) {
+                textArea.parentNode.removeChild(textArea);
+            }
         }
     }
 

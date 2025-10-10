@@ -19,7 +19,7 @@
 - **标签管理**：为每个表情包添加多个标签，方便分类管理
 - **实时搜索**：关键词搜索（300ms 防抖）
 - **网格调整**：小(150px) / 中(200px) / 大(300px)
-- **一键复制**：快速复制表情包链接
+- **一键复制**：支持原始链接 / Markdown / HTML / 分享卡片多格式；原始模式优先复制图片本体，分享卡片输出带 OG 元信息的中转页，便于微信 / QQ 预览
 
 ### ☁️ 数据安全
 - **云端存储**：Cloudflare KV 持久化存储
@@ -108,6 +108,13 @@ HTML：<img src="https://example.com/image.gif">
 - **全部**：所有表情包（智能排序：链接添加的图片显示在前，仓库图片显示在后）
 - **链接添加**：通过链接添加的表情包
 - **仓库图片**：GitHub 仓库中的所有图片（包括手动上传和扫描发现的图片）
+
+### 分享卡片复制
+
+1. 在画廊卡片上点击 `📋` 复制按钮，并通过右上角菜单切换到“分享卡片”格式。
+2. 复制成功后会得到一个 `https://你的域名/share/{id}` 形式的中转链接。
+3. 将该链接粘贴到微信、QQ 等平台，客户端会读取页面中的 `og:*`/Twitter meta 信息自动生成预览卡片。
+4. 链接打开时会展示一个包含标题、图片和描述的静态页面，便于分享者再次预览或下载表情。
 
 ### 管理功能
 
@@ -275,18 +282,20 @@ meme-gallery/
 ├── style.css                  # UI 样式
 ├── app.js                     # 前端交互逻辑
 ├── functions/                 # Cloudflare Pages Functions
-│   └── api/
-│       ├── memes.js           # 表情包列表增删查
-│       ├── scan-repo.js       # 仓库图片扫描同步
-│       ├── upload.js          # 上传图片到 GitHub
-│       ├── verify-key.js      # 管理员密钥校验
-│       └── memes/
-│           ├── [id].js        # 删除单个表情包
-│           ├── clear.js       # 清空全部数据
-│           ├── export.js      # 导出数据
-│           ├── import.js      # 导入数据
-│           ├── search.js      # 搜索接口
-│           └── tags.js        # 标签管理
+│   ├── api/
+│   │   ├── memes.js           # 表情包列表增删查
+│   │   ├── scan-repo.js       # 仓库图片扫描同步
+│   │   ├── upload.js          # 上传图片到 GitHub
+│   │   ├── verify-key.js      # 管理员密钥校验
+│   │   └── memes/
+│   │       ├── [id].js        # 删除单个表情包
+│   │       ├── clear.js       # 清空全部数据
+│   │       ├── export.js      # 导出数据
+│   │       ├── import.js      # 导入数据
+│   │       ├── search.js      # 搜索接口
+│   │       └── tags.js        # 标签管理
+│   └── share/
+│       └── [id].js            # 生成带 OG Meta 的分享页
 ├── package.json
 ├── package-lock.json
 └── README.md

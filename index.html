@@ -26,6 +26,39 @@
                     <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48 0-.24 0-.88 0-1.73-2.78.6-3.37-1.34-3.37-1.34-.45-1.14-1.1-1.45-1.1-1.45-.9-.61.07-.6.07-.6 1 .07 1.52 1.05 1.52 1.05.89 1.52 2.34 1.09 2.91.83a2.1 2.1 0 0 1 .63-1.32c-2.22-.25-4.56-1.11-4.56-4.95a3.88 3.88 0 0 1 1.03-2.69 3.6 3.6 0 0 1 .1-2.65s.84-.27 2.75 1.02a9.55 9.55 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02a3.6 3.6 0 0 1 .1 2.65 3.88 3.88 0 0 1 1.03 2.69c0 3.85-2.34 4.7-4.57 4.95a2.36 2.36 0 0 1 .67 1.82c0 1.32 0 2.38 0 2.7 0 .26.18.57.69.47A10 10 0 0 0 12 2Z"></path>
                 </svg>
             </a>
+            <div class="copy-format-control">
+                <button
+                    id="copyFormatToggle"
+                    class="icon-btn copy-format-btn"
+                    title="切换复制格式"
+                    type="button"
+                    aria-label="切换复制格式"
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span id="copyFormatToggleText" class="copy-format-indicator">链</span>
+                </button>
+                <div id="copyFormatMenu" class="copy-format-menu hidden">
+                    <button class="copy-format-option" data-format="raw" type="button">
+                        <span class="option-title">原始链接</span>
+                        <span class="option-desc">复制图片或直链</span>
+                    </button>
+                    <button class="copy-format-option" data-format="markdown" type="button">
+                        <span class="option-title">Markdown</span>
+                        <span class="option-desc">如：<code>![name](url)</code></span>
+                    </button>
+                    <button class="copy-format-option" data-format="html" type="button">
+                        <span class="option-title">HTML</span>
+                        <span class="option-desc">&lt;img src="..." alt="..."&gt;</span>
+                    </button>
+                    <button class="copy-format-option" data-format="og" type="button">
+                        <span class="option-title">分享卡片</span>
+                        <span class="option-desc">复制带 OG Meta 的中转链接</span>
+                    </button>
+                </div>
+            </div>
             <button id="searchToggle" class="icon-btn" title="搜索">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"></circle>
