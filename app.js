@@ -19,6 +19,7 @@ class MemeGallery {
         this.copyFormatOptions = ['raw', 'markdown', 'html', 'og', 'image'];  // 支持的复制格式
         this.copyFormat = this.loadCopyFormatPreference();  // 当前复制格式
         this.errorPlaceholder = this.generateErrorPlaceholder();  // 图片加载失败占位
+        this.theme = this.initTheme();  // 主题：light/dark
 
         // 图片懒加载并发队列
         this.loadQueue = [];
@@ -1517,6 +1518,13 @@ class MemeGallery {
             }
         });
 
+        // 主题切换
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => this.toggleTheme());
+            this.renderThemeIcon();
+        }
+
         // 搜索栏
         document.getElementById('searchClose').addEventListener('click', () => {
             document.getElementById('searchBar').classList.add('hidden');
@@ -1762,6 +1770,40 @@ class MemeGallery {
         });
 
         this.updateCopyFormatDisplay();
+    }
+
+    // ========== 主题切换 ==========
+    initTheme() {
+        const saved = localStorage.getItem('theme');
+        let theme = saved;
+        if (!theme) {
+            theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        this.applyTheme(theme);
+        return theme;
+    }
+
+    applyTheme(theme) {
+        this.theme = theme;
+        document.documentElement.setAttribute('data-theme', theme);
+        this.renderThemeIcon();
+    }
+
+    toggleTheme() {
+        const next = this.theme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('theme', next);
+        this.applyTheme(next);
+        this.showToast(`已切换为${next === 'dark' ? '夜间' : '日间'}模式`, 'success');
+    }
+
+    renderThemeIcon() {
+        const icon = document.getElementById('themeIcon');
+        if (!icon) return;
+        if (this.theme === 'dark') {
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        } else {
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><path d="M12 1v2"></path><path d="M12 21v2"></path><path d="M4.22 4.22l1.42 1.42"></path><path d="M18.36 18.36l1.42 1.42"></path><path d="M1 12h2"></path><path d="M21 12h2"></path><path d="M4.22 19.78l1.42-1.42"></path><path d="M18.36 5.64l1.42-1.42"></path>';
+        }
     }
 
     // ========== 友链 ==========
