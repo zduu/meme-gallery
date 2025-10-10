@@ -334,10 +334,4 @@ meme-gallery/
 
 欢迎提交 Issue 和 Pull Request！
 
-## 📄 许可证
-
-MIT License
-
----
-
 **🎉 享受你的表情包管理之旅！**

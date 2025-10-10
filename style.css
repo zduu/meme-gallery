@@ -75,6 +75,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .copy-format-control {
@@ -228,6 +229,31 @@ body {
 .icon-btn.btn-primary:hover {
     background: var(--primary-hover);
     transform: scale(1.05);
+}
+
+/* ========== 移动端优化（按钮与头部） ========== */
+@media (max-width: 640px) {
+    .header {
+        height: 56px;
+        padding: 0 12px;
+        padding-top: env(safe-area-inset-top);
+    }
+    .logo { font-size: 1rem; }
+    .header-right { gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .header-right::-webkit-scrollbar { display: none; }
+    .icon-btn { width: 36px; height: 36px; }
+    .header-right .icon-btn svg { width: 18px; height: 18px; }
+    .copy-format-btn { width: 36px; height: 36px; }
+    .copy-format-menu { top: 44px; right: 0; width: 200px; }
+    .copy-format-indicator { bottom: 3px; right: 3px; font-size: 0.55rem; padding: 1px 3px; }
+}
+
+@media (max-width: 375px) {
+    .header-right { gap: 4px; }
+    .icon-btn { width: 32px; height: 32px; }
+    .header-right .icon-btn svg { width: 16px; height: 16px; }
+    .copy-format-btn { width: 32px; height: 32px; }
+    .copy-format-menu { top: 40px; width: 190px; }
 }
 
 /* ========== 搜索栏 ========== */
