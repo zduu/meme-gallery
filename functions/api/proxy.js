@@ -2,6 +2,33 @@
  * 受限图片代理：仅允许特定白名单域名（如哔哩哔哩 hdslb.com）
  * GET /api/proxy?url=<encoded>
  */
+const PROXY_RULES = [
+  // 哔哩哔哩
+  { suffixes: ['hdslb.com'], referer: 'https://www.bilibili.com/' },
+  // 知乎
+  { suffixes: ['zhimg.com'], referer: 'https://www.zhihu.com/' },
+  // Pixiv (i.pximg.net 必须带 referer)
+  { suffixes: ['pximg.net'], referer: 'https://www.pixiv.net/' },
+  // 微博图片
+  { suffixes: ['sinaimg.cn'], referer: 'https://weibo.com/' },
+  // 字节系图床（掘金常用）
+  { suffixes: ['byteimg.com'], referer: 'https://juejin.cn/' },
+  // 抖音
+  { suffixes: ['douyinpic.com'], referer: 'https://www.douyin.com/' },
+  // 米游社
+  { suffixes: ['miyoushe.com'], referer: 'https://www.miyoushe.com/' },
+];
+
+function matchRule(hostname) {
+  hostname = hostname.toLowerCase();
+  for (const rule of PROXY_RULES) {
+    if (rule.suffixes.some(suf => hostname === suf || hostname.endsWith(`.${suf}`))) {
+      return rule;
+    }
+  }
+  return null;
+}
+
 export async function onRequestGet(context) {
   try {
     const requestUrl = new URL(context.request.url);
@@ -15,18 +42,15 @@ export async function onRequestGet(context) {
       return new Response('Invalid protocol', { status: 400 });
     }
 
-    const allowedHosts = new Set([
-      'i0.hdslb.com', 'i1.hdslb.com', 'i2.hdslb.com', 'i3.hdslb.com',
-    ]);
-    const hostname = url.hostname.toLowerCase();
-    if (![...allowedHosts].some((h) => hostname === h || hostname.endsWith(h.replace(/^.*?\./, '')))) {
+    const rule = matchRule(url.hostname);
+    if (!rule) {
       return new Response('Host not allowed', { status: 403 });
     }
 
     const upstream = await fetch(url.toString(), {
       headers: {
-        // 模拟来自 bilibili 站内访问，绕过 Referer 防盗链
-        'Referer': 'https://www.bilibili.com/',
+        // 模拟来源站点 Referer，绕过常见防盗链
+        'Referer': rule.referer,
         'User-Agent': context.request.headers.get('User-Agent') || 'Mozilla/5.0',
         'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
       },
@@ -53,4 +77,3 @@ export async function onRequestGet(context) {
     return new Response('Server error', { status: 500 });
   }
 }
-

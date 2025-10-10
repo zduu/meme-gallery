@@ -180,9 +180,17 @@ class MemeGallery {
     wrapWithProxyIfNeeded(url) {
         try {
             const u = new URL(url);
-            const host = u.hostname;
-            const bilibiliHosts = ['i0.hdslb.com', 'i1.hdslb.com', 'i2.hdslb.com', 'i3.hdslb.com'];
-            const needProxy = bilibiliHosts.some(h => host === h || host.endsWith('.hdslb.com'));
+            const host = u.hostname.toLowerCase();
+            const suffixes = [
+                'hdslb.com',
+                'zhimg.com',
+                'pximg.net',
+                'sinaimg.cn',
+                'byteimg.com',
+                'douyinpic.com',
+                'miyoushe.com',
+            ];
+            const needProxy = suffixes.some(suf => host === suf || host.endsWith(`.${suf}`));
             if (needProxy) {
                 return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}`;
             }

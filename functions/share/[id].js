@@ -149,9 +149,16 @@ function sanitizeUrl(url) {
 function needsProxyForOg(url) {
   try {
     const { hostname } = new URL(url);
-    // 常见哔哩哔哩图片域名，存在防盗链
-    const bilibiliHosts = ['i0.hdslb.com', 'i1.hdslb.com', 'i2.hdslb.com', 'i3.hdslb.com'];
-    return bilibiliHosts.some((h) => hostname === h || hostname.endsWith('.hdslb.com'));
+    const suffixes = [
+      'hdslb.com',
+      'zhimg.com',
+      'pximg.net',
+      'sinaimg.cn',
+      'byteimg.com',
+      'douyinpic.com',
+      'miyoushe.com',
+    ];
+    return suffixes.some((suf) => hostname === suf || hostname.endsWith(`.${suf}`));
   } catch (e) {
     return false;
   }
