@@ -42,6 +42,15 @@ body {
 [data-theme="dark"] .header { background: rgba(17, 24, 39, 0.85); }
 [data-theme="dark"] .category-tabs { background: rgba(17,24,39,0.85); border-color: #1f2937; }
 [data-theme="dark"] .category-tab:hover { background: rgba(255,255,255,0.06); color: var(--text-color); }
+[data-theme="dark"] .modal { background: rgba(0,0,0,0.6); }
+[data-theme="dark"] .modal-content { background: #0b1220; border: 1px solid #1f2937; }
+[data-theme="dark"] .add-mode-tab.active { background: #0b1220; }
+[data-theme="dark"] .upload-area:hover { background: rgba(255,255,255,0.04); }
+[data-theme="dark"] .upload-area.dragover { background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .meme-action-btn { background: rgba(255,255,255,0.12); }
+[data-theme="dark"] .menu-btn-danger:hover { background: rgba(239,68,68,0.15); }
+[data-theme="dark"] .message.success { background: rgba(16,185,129,0.15); color: #bbf7d0; border-color: rgba(16,185,129,0.35); }
+[data-theme="dark"] .message.error { background: rgba(239,68,68,0.15); color: #fecaca; border-color: rgba(239,68,68,0.35); }
 [data-theme="dark"] .icon-btn:hover { background: rgba(255, 255, 255, 0.06); }
 [data-theme="dark"] .meme-image-container { background: #111827; }
 [data-theme="dark"] .image-skeleton { background: linear-gradient(90deg, #1f2937 0%, #111827 20%, #1f2937 40%, #1f2937 100%); }
@@ -291,7 +300,7 @@ body {
     top: 60px;
     left: 0;
     right: 0;
-    background: white;
+    background: var(--card-bg);
     border-bottom: 1px solid var(--border-color);
     padding: 12px 20px;
     z-index: 99;
@@ -342,6 +351,11 @@ body {
 
 .search-close:hover {
     background: rgba(0, 0, 0, 0.05);
+}
+
+/* 暗色主题下搜索栏细节 */
+[data-theme="dark"] .search-close:hover {
+    background: rgba(255, 255, 255, 0.08);
 }
 
 /* ========== 分类标签 ========== */
@@ -749,7 +763,7 @@ body {
 }
 
 .modal-content {
-    background: white;
+    background: var(--card-bg);
     border-radius: 16px;
     width: 100%;
     max-width: 500px;
@@ -845,7 +859,7 @@ body {
 }
 
 .add-mode-tab.active {
-    background: white;
+    background: var(--card-bg);
     color: var(--primary-color);
     box-shadow: var(--shadow-sm);
 }
@@ -912,7 +926,7 @@ body {
     display: block;
     max-height: 300px;
     object-fit: contain;
-    background: #f8fafc;
+    background: var(--bg-color);
 }
 
 .preview-remove {
@@ -960,6 +974,8 @@ body {
     font-family: inherit;
     transition: all 0.2s ease;
     resize: vertical;
+    background: var(--card-bg);
+    color: var(--text-color);
 }
 
 .form-group textarea:focus,
@@ -1124,7 +1140,7 @@ body {
 #adminKeyInput:focus {
     outline: none;
     border-color: var(--primary-color);
-    background: white;
+    background: var(--card-bg);
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
     transform: translateY(-1px);
 }
@@ -1210,7 +1226,7 @@ body {
 
 .size-option {
     border: 2px solid var(--border-color);
-    background: white;
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 16px 12px;
     cursor: pointer;
