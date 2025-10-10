@@ -1145,12 +1145,13 @@ class MemeGallery {
 
     // ========== 标签管理 ==========
 
-    async updateMemeTags(memeId, tags) {
+    async updateMemeTags(memeId, tags, name) {
         try {
             this.setLoading(true);
             const result = await this.apiCall('/api/memes/tags', 'POST', {
                 memeId,
-                tags
+                tags,
+                name
             });
 
             if (result.success) {
@@ -1170,9 +1171,11 @@ class MemeGallery {
         this.currentMemeForTags = meme;
         const tagsInput = document.getElementById('tagsInput');
         const memeName = document.getElementById('tagsMemeNameDisplay');
+        const nameInput = document.getElementById('tagsNameInput');
 
         // 显示当前表情包名称
         memeName.textContent = meme.name;
+        if (nameInput) nameInput.value = meme.name || '';
 
         // 初始化标签输入
         tagsInput.value = (meme.tags || []).join(', ');
@@ -1186,6 +1189,7 @@ class MemeGallery {
         if (!this.currentMemeForTags) return;
 
         const tagsInput = document.getElementById('tagsInput');
+        const nameInput = document.getElementById('tagsNameInput');
         const tagsMessage = document.getElementById('tagsMessage');
 
         // 解析标签（逗号或空格分隔）
@@ -1194,7 +1198,8 @@ class MemeGallery {
             ? tagsText.split(/[,，\s]+/).filter(tag => tag.trim()).map(tag => tag.trim())
             : [];
 
-        const result = await this.updateMemeTags(this.currentMemeForTags.id, tags);
+        const newName = (nameInput && nameInput.value.trim()) || this.currentMemeForTags.name;
+        const result = await this.updateMemeTags(this.currentMemeForTags.id, tags, newName);
 
         if (result.success) {
             this.showToast('标签已更新', 'success');
@@ -1469,6 +1474,14 @@ class MemeGallery {
             this.openModal('sizeModal');
         });
 
+        // 友情链接
+        const friendsToggle = document.getElementById('friendsToggle');
+        if (friendsToggle) {
+            friendsToggle.addEventListener('click', async () => {
+                await this.openFriendsModal();
+            });
+        }
+
         const copyFormatToggle = document.getElementById('copyFormatToggle');
         const copyFormatMenu = document.getElementById('copyFormatMenu');
 
@@ -1603,6 +1616,31 @@ class MemeGallery {
             this.resetUploadForm();
         });
 
+        // 友情链接弹窗
+        const friendsModalClose = document.getElementById('friendsModalClose');
+        if (friendsModalClose) {
+            friendsModalClose.addEventListener('click', () => this.closeModal('friendsModal'));
+        }
+        const friendAddBtn = document.getElementById('friendAddBtn');
+        if (friendAddBtn) {
+            friendAddBtn.addEventListener('click', async () => {
+                const name = document.getElementById('friendName').value.trim();
+                const url = document.getElementById('friendUrl').value.trim();
+                const icon = document.getElementById('friendIcon').value.trim();
+                const res = await this.saveFriendLink({ action: 'add', name, url, icon });
+                if (res.success) {
+                    document.getElementById('friendName').value = '';
+                    document.getElementById('friendUrl').value = '';
+                    document.getElementById('friendIcon').value = '';
+                    await this.loadFriends();
+                    this.renderFriends();
+                    this.showToast('已添加友链', 'success');
+                } else {
+                    this.showToast(res.error || '添加失败', 'error');
+                }
+            });
+        }
+
         // 菜单弹窗
         document.getElementById('menuModalClose').addEventListener('click', () => {
             this.closeModal('menuModal');
@@ -1724,6 +1762,77 @@ class MemeGallery {
         });
 
         this.updateCopyFormatDisplay();
+    }
+
+    // ========== 友链 ==========
+    async openFriendsModal() {
+        await this.loadFriends();
+        this.renderFriends();
+        const edit = document.getElementById('friendsEdit');
+        if (edit) edit.classList.toggle('hidden', !this.isAdmin);
+        this.openModal('friendsModal');
+    }
+
+    async loadFriends() {
+        try {
+            const res = await this.apiCall('/api/friends', 'GET');
+            this.friends = res.success ? (res.data || []) : [];
+        } catch (e) {
+            this.friends = [];
+        }
+    }
+
+    renderFriends() {
+        const listEl = document.getElementById('friendsList');
+        const emptyEl = document.getElementById('friendsEmpty');
+        if (!listEl || !emptyEl) return;
+
+        if (!this.friends || this.friends.length === 0) {
+            listEl.innerHTML = '';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+        emptyEl.classList.add('hidden');
+
+        listEl.innerHTML = this.friends.map(link => {
+            const icon = this.escapeHtml(link.icon || `${link.url.replace(/\/$/, '')}/favicon.ico`);
+            const name = this.escapeHtml(link.name);
+            const url = this.escapeHtml(link.url);
+            const removeBtn = this.isAdmin ? `<button class="friend-remove" data-id="${link.id}" title="删除">✕</button>` : '';
+            return `
+                <div class="friend-item">
+                    <img class="friend-favicon" src="${icon}" alt="">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a>
+                    ${removeBtn}
+                </div>
+            `;
+        }).join('');
+
+        if (this.isAdmin) {
+            listEl.querySelectorAll('.friend-remove').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = Number(e.currentTarget.dataset.id);
+                    if (!confirm('删除这个友链？')) return;
+                    const res = await this.saveFriendLink({ action: 'delete', id });
+                    if (res.success) {
+                        await this.loadFriends();
+                        this.renderFriends();
+                        this.showToast('已删除友链', 'success');
+                    } else {
+                        this.showToast(res.error || '删除失败', 'error');
+                    }
+                });
+            });
+        }
+    }
+
+    async saveFriendLink(payload) {
+        try {
+            const res = await this.apiCall('/api/friends', 'POST', payload);
+            return res;
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     }
 
     bindCardEvents() {

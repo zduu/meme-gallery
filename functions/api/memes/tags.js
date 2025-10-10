@@ -6,7 +6,7 @@ export async function onRequestPost(context) {
   try {
     const { MEME_GALLERY_KV } = context.env;
     const body = await context.request.json();
-    const { memeId, tags } = body;
+    const { memeId, tags, name } = body;
 
     if (!memeId || !Array.isArray(tags)) {
       return new Response(
@@ -30,6 +30,11 @@ export async function onRequestPost(context) {
 
     // 更新标签
     memes[memeIndex].tags = tags;
+
+    // 可选：更新名称
+    if (typeof name === 'string' && name.trim()) {
+      memes[memeIndex].name = name.trim();
+    }
 
     // 保存更新
     await MEME_GALLERY_KV.put('memes', JSON.stringify(memes));

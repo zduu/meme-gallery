@@ -158,6 +158,49 @@ body {
     font-size: 0.7rem;
 }
 
+/* ========== 友情链接 ========== */
+.friends-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.friend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.friend-item a {
+    color: var(--text-color);
+    text-decoration: none;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.friend-favicon {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: #eef2f7;
+}
+
+.friend-remove {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 6px;
+}
+
 .icon-btn {
     width: 40px;
     height: 40px;

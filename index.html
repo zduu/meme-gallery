@@ -77,6 +77,12 @@
                     </button>
                 </div>
             </div>
+            <button id="friendsToggle" class="icon-btn" title="友情链接">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l2-2a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-2 2a5 5 0 1 0 7.07 7.07l1.72-1.71"></path>
+                </svg>
+            </button>
             <button id="searchToggle" class="icon-btn" title="搜索">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"></circle>
@@ -121,6 +127,40 @@
                 autocomplete="off"
             >
             <button id="searchClose" class="search-close">✕</button>
+        </div>
+    </div>
+
+    <!-- 友情链接弹窗 -->
+    <div id="friendsModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>🔗 友情链接</h2>
+                <button class="modal-close" id="friendsModalClose">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="friendsList" class="friends-list"></div>
+                <div id="friendsEmpty" class="empty-state hidden">
+                    <div class="empty-icon">🤝</div>
+                    <p>还没有友链</p>
+                </div>
+                <div id="friendsEdit" class="friends-edit hidden">
+                    <div class="form-group">
+                        <label>名称</label>
+                        <input type="text" id="friendName" placeholder="站点名称">
+                    </div>
+                    <div class="form-group">
+                        <label>链接</label>
+                        <input type="text" id="friendUrl" placeholder="https://example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>图标（可选）</label>
+                        <input type="text" id="friendIcon" placeholder="https://example.com/favicon.ico">
+                    </div>
+                    <div class="modal-footer">
+                        <button id="friendAddBtn" class="btn btn-primary">添加友链</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -364,6 +404,15 @@
                 <div class="tags-meme-info">
                     <span class="tags-meme-label">表情包：</span>
                     <span class="tags-meme-name" id="tagsMemeNameDisplay"></span>
+                </div>
+                <div class="form-group">
+                    <label>名称</label>
+                    <input
+                        type="text"
+                        id="tagsNameInput"
+                        placeholder="编辑表情包名称"
+                        autocomplete="off"
+                    >
                 </div>
                 <div class="form-group">
                     <label>标签</label>

@@ -290,6 +290,7 @@ meme-gallery/
 │   │   ├── scan-repo.js       # 仓库图片扫描同步
 │   │   ├── upload.js          # 上传图片到 GitHub
 │   │   ├── verify-key.js      # 管理员密钥校验
+│   │   ├── friends.js         # 友情链接增删查
 │   │   ├── proxy.js           # 受限图床代理（hdslb/zhimg/pximg/sinaimg/byteimg/douyinpic/miyoushe）
 │   │   └── memes/
 │   │       ├── [id].js        # 删除单个表情包
