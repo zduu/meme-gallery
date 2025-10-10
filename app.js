@@ -491,39 +491,23 @@ class MemeGallery {
                 };
             }
 
-            return { success: false, message: '复制失败，请手动复制' };
+            return { success: false, message: '复制失败,请手动复制' };
         }
 
         if (this.copyFormat === 'raw') {
+            // 原始链接模式:直接复制链接文本,不尝试复制图片
             const sources = this.buildImageSources(meme.url);
-            if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
-                for (const source of sources) {
-                    const result = await this.copyImageToClipboard(source);
-                    if (result.success) {
-                        return {
-                            success: true,
-                            message: '图片已复制，可直接粘贴到微信 / QQ',
-                            type: 'image'
-                        };
-                    }
-                    if (result.unsupported) {
-                        break;
-                    }
-                }
-            }
-
             const text = sources[0] || meme.url;
             const textResult = await this.copyTextToClipboard(text);
             if (textResult.success) {
                 return {
                     success: true,
-                    message: `${label} 已复制到剪贴板（图片复制受限，已降级为链接）`,
-                    type: 'text',
-                    fallback: true
+                    message: `${label} 已复制到剪贴板`,
+                    type: 'text'
                 };
             }
 
-            return { success: false, message: '复制失败，请手动复制' };
+            return { success: false, message: '复制失败,请手动复制' };
         }
 
         const text = this.composeCopyText(meme);
@@ -532,7 +516,7 @@ class MemeGallery {
             return { success: true, message: `${label} 已复制到剪贴板`, type: 'text' };
         }
 
-        return { success: false, message: '复制失败，请手动复制' };
+        return { success: false, message: '复制失败,请手动复制' };
     }
 
     extractImageUrl(input) {
