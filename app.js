@@ -501,6 +501,13 @@ class MemeGallery {
         // 根据当前分类过滤
         if (this.currentCategory !== 'all') {
             displayMemes = displayMemes.filter(meme => meme.source === this.currentCategory);
+        } else {
+            // 在"全部"分类中，链接添加的图片排在前面，仓库图片排在后面
+            displayMemes = [...displayMemes].sort((a, b) => {
+                if (a.source === 'link' && b.source === 'upload') return -1;
+                if (a.source === 'upload' && b.source === 'link') return 1;
+                return 0;
+            });
         }
 
         // 更新计数
