@@ -14,11 +14,17 @@ class MemeGallery {
         this.isAdmin = sessionStorage.getItem('isAdmin') === 'true';  // 管理员状态
         this.currentMemeForTags = null;  // 当前正在编辑标签的表情包
         this.allTags = new Set();  // 所有标签集合
-        this.pageSize = 50;  // 每页显示数量
+        this.pageSize = 30;  // 每页显示数量（首屏更快）
         this.currentPage = 1;  // 当前页码
         this.copyFormatOptions = ['raw', 'markdown', 'html', 'og', 'image'];  // 支持的复制格式
         this.copyFormat = this.loadCopyFormatPreference();  // 当前复制格式
         this.errorPlaceholder = this.generateErrorPlaceholder();  // 图片加载失败占位
+
+        // 图片懒加载并发队列
+        this.loadQueue = [];
+        this.inFlightLoads = 0;
+        this.maxConcurrentLoads = 8;
+
         this.init();
     }
 
@@ -40,17 +46,17 @@ class MemeGallery {
                 if (entry.isIntersecting) {
                     const img = entry.target;
                     const dataSrc = img.dataset.src;
-                    if (dataSrc) {
+                    if (dataSrc && img.dataset.enqueued !== 'true') {
+                        img.dataset.enqueued = 'true';
                         img.dataset.isPlaceholder = 'false';
                         img.dataset.fallbackIndex = '0';
-                        img.src = dataSrc;
-                        img.removeAttribute('data-src');
+                        this.enqueueImage(img);
                         this.imageObserver.unobserve(img);
                     }
                 }
             });
         }, {
-            rootMargin: '50px',  // 提前 50px 开始加载
+            rootMargin: '500px',  // 提前一屏开始加载
             threshold: 0.01
         });
     }
@@ -64,6 +70,34 @@ class MemeGallery {
         document.querySelectorAll('img[data-src]').forEach(img => {
             this.imageObserver.observe(img);
         });
+    }
+
+    enqueueImage(img) {
+        this.loadQueue.push(img);
+        this.processQueue();
+    }
+
+    processQueue() {
+        while (this.inFlightLoads < this.maxConcurrentLoads && this.loadQueue.length > 0) {
+            const img = this.loadQueue.shift();
+            if (!img || !img.dataset) continue;
+            const src = img.dataset.src;
+            if (!src) continue;
+            this.inFlightLoads++;
+            img.dataset.loadingActive = 'true';
+            // 当图片加载或失败时，统一回调减少并发
+            const settle = () => {
+                if (img.dataset.loadingActive === 'true') {
+                    img.dataset.loadingActive = 'false';
+                    this.inFlightLoads = Math.max(0, this.inFlightLoads - 1);
+                    this.processQueue();
+                }
+            };
+            img.addEventListener('load', settle, { once: true });
+            img.addEventListener('error', settle, { once: true });
+            img.src = src;
+            img.removeAttribute('data-src');
+        }
     }
 
     // ========== 格式识别 ==========
@@ -175,6 +209,28 @@ class MemeGallery {
         sources.add(url);
 
         return Array.from(sources);
+    }
+
+    // 构建卡片展示用的小图优先源（缩略图 → 代理原图 → 其它源）
+    buildDisplaySources(url) {
+        const list = [];
+        const thumb = this.getThumbUrl(url, 480);
+        if (thumb) list.push(thumb);
+        const proxied = this.wrapWithProxyIfNeeded(url);
+        if (proxied) list.push(proxied);
+        this.buildImageSources(url).forEach(u => list.push(u));
+        // 去重
+        return Array.from(new Set(list));
+    }
+
+    // 生成缩略图代理 URL（利用 /api/proxy 的 w/fmt）
+    getThumbUrl(url, width = 480) {
+        try {
+            // 对大多数第三方源都可以用代理缩放；同源也可走代理加速边缘缓存
+            return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}&w=${width}&fmt=auto&fit=scale-down`;
+        } catch (e) {
+            return '';
+        }
     }
 
     wrapWithProxyIfNeeded(url) {
@@ -1237,6 +1293,10 @@ class MemeGallery {
         // 渲染表情包卡片
         gallery.innerHTML = pagedMemes.map(meme => this.createMemeCard(meme)).join('');
 
+        // 提升首屏前若干张图片的请求优先级
+        const firstPriorityImgs = Array.from(gallery.querySelectorAll('.meme-image')).slice(0, 8);
+        firstPriorityImgs.forEach(img => img.setAttribute('fetchpriority', 'high'));
+
         // 添加"加载更多"按钮
         if (hasMore) {
             gallery.innerHTML += `
@@ -1300,8 +1360,8 @@ class MemeGallery {
             : '';
         const serializedMeme = JSON.stringify(meme).replace(/'/g, '&apos;');
 
-        // 根据 GitHub 链接生成多源地址，降低加载失败概率
-        const imageSources = this.buildImageSources(meme.url);
+        // 显示优先：小图缩略 + 代理原图 + 其它源
+        const imageSources = this.buildDisplaySources(meme.url);
         const [primarySource, ...fallbackSources] = imageSources;
         const dataSrc = this.escapeHtml(primarySource || meme.url);
         const fallbackAttr = fallbackSources.length > 0
@@ -1318,6 +1378,8 @@ class MemeGallery {
                         data-fallback-index="0"${fallbackAttr}
                         alt="${this.escapeHtml(meme.name)}"
                         class="meme-image"
+                        decoding="async"
+                        fetchpriority="low"
                     >
                     <div class="meme-overlay">
                         <div class="meme-name">${this.escapeHtml(meme.name)}</div>
