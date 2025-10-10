@@ -287,6 +287,7 @@ meme-gallery/
 │   │   ├── scan-repo.js       # 仓库图片扫描同步
 │   │   ├── upload.js          # 上传图片到 GitHub
 │   │   ├── verify-key.js      # 管理员密钥校验
+│   │   ├── proxy.js           # 受限图床代理（如 hdslb.com）
 │   │   └── memes/
 │   │       ├── [id].js        # 删除单个表情包
 │   │       ├── clear.js       # 清空全部数据

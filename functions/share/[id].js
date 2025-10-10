@@ -22,8 +22,12 @@ export async function onRequestGet(context) {
 
     const title = sanitizeText(meme.name || 'Meme');
     const description = '来自 Meme Gallery 的表情包';
-    const imageUrl = sanitizeUrl(meme.url);
+    const originalImageUrl = sanitizeUrl(meme.url);
     const pageUrl = `${requestUrl.origin}/share/${encodeURIComponent(idParam)}`;
+
+    const imageUrl = needsProxyForOg(originalImageUrl)
+      ? `${requestUrl.origin}/api/proxy?url=${encodeURIComponent(originalImageUrl)}`
+      : originalImageUrl;
 
     const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -37,8 +41,7 @@ export async function onRequestGet(context) {
   <meta property="og:title" content="${title}">
   <meta property="og:description" content="${description}">
   <meta property="og:image" content="${imageUrl}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <!-- 不设置固定宽高，避免平台根据错误尺寸拉伸 -->
   <meta property="og:type" content="article">
   <meta property="og:url" content="${pageUrl}">
   <meta name="twitter:card" content="summary_large_image">
@@ -74,8 +77,14 @@ export async function onRequestGet(context) {
       padding: 32px;
     }
     img {
+      display: block;
       max-width: 100%;
+      max-height: 70vh;
+      width: auto;
+      height: auto;
+      object-fit: contain;
       border-radius: 12px;
+      margin: 0 auto;
     }
     h1 {
       font-size: 1.5rem;
@@ -134,5 +143,16 @@ function sanitizeUrl(url) {
   } catch (error) {
     console.error('Invalid image url:', url, error);
     return '';
+  }
+}
+
+function needsProxyForOg(url) {
+  try {
+    const { hostname } = new URL(url);
+    // 常见哔哩哔哩图片域名，存在防盗链
+    const bilibiliHosts = ['i0.hdslb.com', 'i1.hdslb.com', 'i2.hdslb.com', 'i3.hdslb.com'];
+    return bilibiliHosts.some((h) => hostname === h || hostname.endsWith('.hdslb.com'));
+  } catch (e) {
+    return false;
   }
 }

@@ -9,7 +9,7 @@ export async function onRequestPost(context) {
     const { key } = body;
 
     // 默认密钥（如果未配置 ADMIN_KEY）
-    const DEFAULT_ADMIN_KEY = 'meme-gallery-2024';
+    const DEFAULT_ADMIN_KEY = 'meme-gallery-2025';
 
     // 使用配置的密钥，如果没有配置则使用默认密钥
     const adminKey = ADMIN_KEY || DEFAULT_ADMIN_KEY;

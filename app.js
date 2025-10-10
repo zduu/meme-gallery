@@ -166,9 +166,46 @@ class MemeGallery {
             });
         }
 
+        // 为部分启用防盗链的图床添加本地代理作为优先源
+        const proxied = this.wrapWithProxyIfNeeded(url);
+        if (proxied) {
+            sources.add(proxied);
+        }
+
         sources.add(url);
 
         return Array.from(sources);
+    }
+
+    wrapWithProxyIfNeeded(url) {
+        try {
+            const u = new URL(url);
+            const host = u.hostname;
+            const bilibiliHosts = ['i0.hdslb.com', 'i1.hdslb.com', 'i2.hdslb.com', 'i3.hdslb.com'];
+            const needProxy = bilibiliHosts.some(h => host === h || host.endsWith('.hdslb.com'));
+            if (needProxy) {
+                return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}`;
+            }
+            return '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    // 复制用首选链接：
+    // - GitHub 原始链接转换为 jsDelivr 以提升可用性
+    // - 其他来源返回原始链接（不使用代理参数）
+    getCopyPreferredUrl(url) {
+        try {
+            const info = this.getGitHubFileInfo(url);
+            if (info) {
+                const cdnUrl = this.buildGitHubUrl(info, 'jsdelivr');
+                return cdnUrl || url;
+            }
+            return url;
+        } catch (e) {
+            return url;
+        }
     }
 
     generateErrorPlaceholder() {
@@ -364,8 +401,7 @@ class MemeGallery {
             return this.getShareUrl(meme);
         }
 
-        const sources = this.buildImageSources(meme.url);
-        const primaryUrl = sources[0] || meme.url;
+        const primaryUrl = this.getCopyPreferredUrl(meme.url);
         const decodeMap = {
             '&apos;': '\'',
             '&#39;': '\'',
@@ -497,7 +533,7 @@ class MemeGallery {
         if (this.copyFormat === 'raw') {
             // 原始链接模式:直接复制链接文本,不尝试复制图片
             const sources = this.buildImageSources(meme.url);
-            const text = sources[0] || meme.url;
+            const text = this.getCopyPreferredUrl(meme.url);
             const textResult = await this.copyTextToClipboard(text);
             if (textResult.success) {
                 return {
