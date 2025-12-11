@@ -24,7 +24,14 @@ class MemeGallery {
         // 图片懒加载并发队列
         this.loadQueue = [];
         this.inFlightLoads = 0;
-        this.maxConcurrentLoads = 8;
+        this.maxConcurrentLoads = 12;
+
+        // 自动加载更多控制
+        this.autoLoadObserver = null;
+        this.autoLoadScrollHandler = null;
+        this.isLoadingMorePage = false;
+        this.lastAutoLoadTime = 0;
+        this.autoLoadCooldown = 600;  // ms
 
         this.init();
     }
@@ -1310,6 +1317,7 @@ class MemeGallery {
                     <button id="loadMoreBtn" class="btn-load-more">
                         加载更多 (${displayMemes.length - endIndex} 张)
                     </button>
+                    <div id="autoLoadSentinel" class="auto-load-sentinel" aria-hidden="true"></div>
                 </div>
             `;
 
@@ -1318,8 +1326,7 @@ class MemeGallery {
                 const loadMoreBtn = document.getElementById('loadMoreBtn');
                 if (loadMoreBtn) {
                     loadMoreBtn.addEventListener('click', () => {
-                        this.currentPage++;
-                        this.render();
+                        this.triggerLoadMore(false);
                         // 滚动到新加载的内容
                         window.scrollTo({
                             top: document.body.scrollHeight - window.innerHeight - 200,
@@ -1334,6 +1341,9 @@ class MemeGallery {
 
         // 启动图片懒加载观察
         setTimeout(() => this.observeImages(), 0);
+
+        // 自动触发加载更多
+        this.setupAutoLoaders(hasMore);
     }
 
     updateCategoryCounts() {
@@ -1770,6 +1780,64 @@ class MemeGallery {
         });
 
         this.updateCopyFormatDisplay();
+    }
+
+    setupAutoLoaders(hasMore) {
+        if (this.autoLoadObserver) {
+            this.autoLoadObserver.disconnect();
+            this.autoLoadObserver = null;
+        }
+
+        if (this.autoLoadScrollHandler) {
+            window.removeEventListener('scroll', this.autoLoadScrollHandler);
+            this.autoLoadScrollHandler = null;
+        }
+
+        if (!hasMore) {
+            return;
+        }
+
+        const sentinel = document.getElementById('autoLoadSentinel');
+        if (sentinel) {
+            this.autoLoadObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        this.triggerLoadMore(true);
+                    }
+                });
+            }, {
+                rootMargin: '800px 0px 400px 0px',  // 提前预加载
+                threshold: 0.01
+            });
+
+            this.autoLoadObserver.observe(sentinel);
+        }
+
+        // 兜底：IntersectionObserver 不可靠时使用滚动监听
+        this.autoLoadScrollHandler = () => {
+            const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+            if (scrollHeight - (scrollTop + clientHeight) < 600) {
+                this.triggerLoadMore(true);
+            }
+        };
+        window.addEventListener('scroll', this.autoLoadScrollHandler, { passive: true });
+    }
+
+    triggerLoadMore(autoTriggered = false) {
+        if (this.isLoadingMorePage) return;
+
+        if (autoTriggered) {
+            const now = Date.now();
+            if (now - this.lastAutoLoadTime < this.autoLoadCooldown) {
+                return;
+            }
+            this.lastAutoLoadTime = now;
+        }
+
+        this.isLoadingMorePage = true;
+        this.currentPage++;
+        this.render();
+        this.isLoadingMorePage = false;
     }
 
     // ========== 主题切换 ==========
