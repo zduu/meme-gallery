@@ -1,3 +1,5 @@
+import { isAdminRequest, jsonResponse } from '../_utils/auth.js';
+
 /**
  * Cloudflare Pages Functions - 上传图片到 GitHub
  * POST /api/upload
@@ -6,47 +8,43 @@ export async function onRequestPost(context) {
   try {
     const { MEME_GALLERY_KV, GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH } = context.env;
     const body = await context.request.json();
-    const { file, filename, name, source } = body;
+    const { file, filename, name } = body;
 
     if (!file || !filename) {
-      return new Response(
-        JSON.stringify({ success: false, error: '缺少文件数据' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: false, error: '缺少文件数据' }, 400);
+    }
+
+    if (!isValidBase64(file)) {
+      return jsonResponse({ success: false, error: '文件数据格式错误' }, 400);
+    }
+
+    const maxSize = 10 * 1024 * 1024;
+    if (getBase64Bytes(file) > maxSize) {
+      return jsonResponse({ success: false, error: '文件太大，请选择小于 10MB 的图片' }, 400);
     }
 
     // 检查环境变量
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: '未配置 GitHub 存储，请在 Cloudflare Dashboard 中设置环境变量 GITHUB_TOKEN 和 GITHUB_REPO'
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: '未配置 GitHub 存储，请在 Cloudflare Dashboard 中设置环境变量 GITHUB_TOKEN 和 GITHUB_REPO'
+      }, 500);
     }
 
-    // GitHub API 频率限制检查
+    // GitHub API 频率限制检查。游客允许上传，但使用更严格的 per-IP 限流。
     const clientIP = context.request.headers.get('CF-Connecting-IP') || 'unknown';
-    const rateLimitKey = `upload_ratelimit_${clientIP}`;
+    const isAdmin = await isAdminRequest(context);
     const now = Date.now();
+    const limits = isAdmin
+      ? { minInterval: 3000, hourlyMax: 120, dailyMax: 500 }
+      : { minInterval: 5000, hourlyMax: 15, dailyMax: 30 };
 
-    // 获取上次上传时间
-    const lastUploadTime = await MEME_GALLERY_KV.get(rateLimitKey);
-    if (lastUploadTime) {
-      const timeSinceLastUpload = now - parseInt(lastUploadTime);
-      const minInterval = 3000; // 最小间隔 3 秒
-
-      if (timeSinceLastUpload < minInterval) {
-        const waitTime = Math.ceil((minInterval - timeSinceLastUpload) / 1000);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: `上传过于频繁，请等待 ${waitTime} 秒后再试`
-          }),
-          { status: 429, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
+    const rateLimit = await checkUploadRateLimit(MEME_GALLERY_KV, clientIP, limits, now);
+    if (!rateLimit.allowed) {
+      return jsonResponse({
+        success: false,
+        error: rateLimit.error
+      }, 429);
     }
 
     // 生成文件路径
@@ -56,13 +54,10 @@ export async function onRequestPost(context) {
     // 验证文件扩展名
     const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     if (!allowedExts.includes(ext)) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `不支持的文件格式，仅支持: ${allowedExts.join(', ')}`
-        }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: `不支持的文件格式，仅支持: ${allowedExts.join(', ')}`
+      }, 400);
     }
 
     const githubFilename = `meme-${timestamp}.${ext}`;
@@ -91,22 +86,16 @@ export async function onRequestPost(context) {
 
       // GitHub API 特定错误处理
       if (githubResponse.status === 403) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'GitHub API 频率限制，请稍后再试'
-          }),
-          { status: 429, headers: { 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({
+          success: false,
+          error: 'GitHub API 频率限制，请稍后再试'
+        }, 429);
       }
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `GitHub 上传失败: ${errorData.message || '未知错误'}`
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: `GitHub 上传失败: ${errorData.message || '未知错误'}`
+      }, 500);
     }
 
     const githubData = await githubResponse.json();
@@ -120,7 +109,7 @@ export async function onRequestPost(context) {
       id: Date.now() + Math.random(),
       url: imageUrl,
       name: name || filename.replace(/\.[^/.]+$/, ''),
-      source: source || 'upload',
+      source: 'upload',
       addedAt: new Date().toISOString(),
       github_path: githubPath,
       github_sha: githubData.content.sha
@@ -129,18 +118,77 @@ export async function onRequestPost(context) {
     memes.unshift(newMeme);
     await MEME_GALLERY_KV.put('memes', JSON.stringify(memes));
 
-    // 记录上传时间（设置 TTL 为 1 小时）
-    await MEME_GALLERY_KV.put(rateLimitKey, now.toString(), { expirationTtl: 3600 });
+    await commitUploadRateLimit(MEME_GALLERY_KV, rateLimit, now);
 
-    return new Response(
-      JSON.stringify({ success: true, data: newMeme }),
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: true, data: newMeme });
   } catch (error) {
     console.error('Upload error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
+}
+
+function isValidBase64(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
+function getBase64Bytes(value) {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  return Math.floor((value.length * 3) / 4) - padding;
+}
+
+async function checkUploadRateLimit(kv, clientIP, limits, now) {
+  const safeIP = clientIP || 'unknown';
+  const lastKey = `upload_ratelimit_last_${safeIP}`;
+  const hourKey = `upload_ratelimit_hour_${safeIP}_${Math.floor(now / 3600000)}`;
+  const dayKey = `upload_ratelimit_day_${safeIP}_${new Date(now).toISOString().slice(0, 10)}`;
+
+  const [lastUploadTime, hourlyCount, dailyCount] = await Promise.all([
+    kv.get(lastKey),
+    kv.get(hourKey),
+    kv.get(dayKey),
+  ]);
+
+  if (lastUploadTime) {
+    const timeSinceLastUpload = now - parseInt(lastUploadTime, 10);
+    if (timeSinceLastUpload < limits.minInterval) {
+      const waitTime = Math.ceil((limits.minInterval - timeSinceLastUpload) / 1000);
+      return {
+        allowed: false,
+        error: `上传过于频繁，请等待 ${waitTime} 秒后再试`,
+      };
+    }
+  }
+
+  const nextHourlyCount = parseInt(hourlyCount || '0', 10) + 1;
+  if (nextHourlyCount > limits.hourlyMax) {
+    return {
+      allowed: false,
+      error: `本小时上传次数已达上限（${limits.hourlyMax} 次），请稍后再试`,
+    };
+  }
+
+  const nextDailyCount = parseInt(dailyCount || '0', 10) + 1;
+  if (nextDailyCount > limits.dailyMax) {
+    return {
+      allowed: false,
+      error: `今日上传次数已达上限（${limits.dailyMax} 次），请明天再试`,
+    };
+  }
+
+  return {
+    allowed: true,
+    lastKey,
+    hourKey,
+    dayKey,
+    nextHourlyCount,
+    nextDailyCount,
+  };
+}
+
+async function commitUploadRateLimit(kv, rateLimit, now) {
+  await Promise.all([
+    kv.put(rateLimit.lastKey, now.toString(), { expirationTtl: 24 * 60 * 60 }),
+    kv.put(rateLimit.hourKey, String(rateLimit.nextHourlyCount), { expirationTtl: 2 * 60 * 60 }),
+    kv.put(rateLimit.dayKey, String(rateLimit.nextDailyCount), { expirationTtl: 2 * 24 * 60 * 60 }),
+  ]);
 }

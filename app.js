@@ -14,6 +14,8 @@ class MemeGallery {
         this.isAdmin = sessionStorage.getItem('isAdmin') === 'true';  // 管理员状态
         this.currentMemeForTags = null;  // 当前正在编辑标签的表情包
         this.allTags = new Set();  // 所有标签集合
+        this.isSearching = false;  // 是否处于搜索状态
+        this.searchKeyword = '';  // 当前搜索关键词
         this.pageSize = 30;  // 每页显示数量（首屏更快）
         this.currentPage = 1;  // 当前页码
         this.copyFormatOptions = ['raw', 'markdown', 'html', 'og', 'image'];  // 支持的复制格式
@@ -234,7 +236,9 @@ class MemeGallery {
     // 生成缩略图代理 URL（利用 /api/proxy 的 w/fmt）
     getThumbUrl(url, width = 480) {
         try {
-            // 对大多数第三方源都可以用代理缩放；同源也可走代理加速边缘缓存
+            if (!this.shouldUseProxy(url)) {
+                return '';
+            }
             return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}&w=${width}&fmt=auto&fit=scale-down`;
         } catch (e) {
             return '';
@@ -242,6 +246,14 @@ class MemeGallery {
     }
 
     wrapWithProxyIfNeeded(url) {
+        if (!this.shouldUseProxy(url)) {
+            return '';
+        }
+
+        return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}`;
+    }
+
+    shouldUseProxy(url) {
         try {
             const u = new URL(url);
             const host = u.hostname.toLowerCase();
@@ -254,13 +266,9 @@ class MemeGallery {
                 'douyinpic.com',
                 'miyoushe.com',
             ];
-            const needProxy = suffixes.some(suf => host === suf || host.endsWith(`.${suf}`));
-            if (needProxy) {
-                return `${this.apiEndpoint}/api/proxy?url=${encodeURIComponent(url)}`;
-            }
-            return '';
+            return suffixes.some(suf => host === suf || host.endsWith(`.${suf}`));
         } catch (e) {
-            return '';
+            return false;
         }
     }
 
@@ -885,6 +893,7 @@ class MemeGallery {
             const options = {
                 method,
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
             };
             if (body) {
                 options.body = JSON.stringify(body);
@@ -894,6 +903,12 @@ class MemeGallery {
             const data = await response.json();
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    this.isAdmin = false;
+                    sessionStorage.removeItem('isAdmin');
+                    this.updateAdminButtons();
+                    this.render();
+                }
                 throw new Error(data.error || '请求失败');
             }
 
@@ -1009,7 +1024,11 @@ class MemeGallery {
     }
 
     async searchMemes(keyword) {
-        if (!keyword.trim()) {
+        const trimmedKeyword = keyword.trim();
+        this.searchKeyword = trimmedKeyword;
+        this.isSearching = trimmedKeyword.length > 0;
+
+        if (!trimmedKeyword) {
             this.filteredMemes = [...this.memes];
             this.currentPage = 1;  // 重置页码
             this.render();
@@ -1018,7 +1037,7 @@ class MemeGallery {
 
         try {
             this.setLoading(true);
-            const result = await this.apiCall(`/api/memes/search?q=${encodeURIComponent(keyword)}`);
+            const result = await this.apiCall(`/api/memes/search?q=${encodeURIComponent(trimmedKeyword)}`);
 
             if (result.success) {
                 this.filteredMemes = result.data;
@@ -1176,6 +1195,11 @@ class MemeGallery {
     }
 
     openTagsModal(meme) {
+        if (!this.isAdmin) {
+            this.showToast('管理标签需要管理员权限', 'error');
+            return;
+        }
+
         this.currentMemeForTags = meme;
         const tagsInput = document.getElementById('tagsInput');
         const memeName = document.getElementById('tagsMemeNameDisplay');
@@ -1264,9 +1288,7 @@ class MemeGallery {
         this.collectAllTags();
 
         // 应用分类过滤
-        let displayMemes = this.filteredMemes.length > 0 || this.memes.length === 0
-            ? this.filteredMemes
-            : this.memes;
+        let displayMemes = this.isSearching ? this.filteredMemes : this.memes;
 
         // 根据当前分类过滤
         if (this.currentCategory !== 'all') {
@@ -1288,7 +1310,7 @@ class MemeGallery {
             gallery.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">🎨</div>
-                    <p>${this.filteredMemes.length === 0 && this.memes.length > 0 ? '没有找到匹配的表情包' : '还没有表情包'}</p>
+                    <p>${this.isSearching ? '没有找到匹配的表情包' : '还没有表情包'}</p>
                     <button class="btn-link" onclick="document.getElementById('addToggle').click()">
                         点击右上角 + 添加第一个表情包
                     </button>
@@ -1404,7 +1426,7 @@ class MemeGallery {
                             <button class="meme-action-btn copy-btn" data-id="${meme.id}" data-meme='${serializedMeme}' data-url="${this.escapeHtml(meme.url)}" onclick="event.stopPropagation()" title="复制（当前格式）">
                                 📋
                             </button>
-                            <button class="meme-action-btn tags-btn" data-meme='${serializedMeme}' onclick="event.stopPropagation()" title="管理标签">
+                            <button class="meme-action-btn tags-btn ${this.isAdmin ? '' : 'hidden'}" data-meme='${serializedMeme}' onclick="event.stopPropagation()" title="管理标签">
                                 🏷️
                             </button>
                             <button class="meme-action-btn delete-btn ${this.isAdmin ? '' : 'hidden'}" data-id="${meme.id}" onclick="event.stopPropagation()" title="删除">
@@ -1539,6 +1561,8 @@ class MemeGallery {
         document.getElementById('searchClose').addEventListener('click', () => {
             document.getElementById('searchBar').classList.add('hidden');
             document.getElementById('searchInput').value = '';
+            this.searchKeyword = '';
+            this.isSearching = false;
             this.filteredMemes = [...this.memes];
             this.render();
         });
@@ -2124,6 +2148,7 @@ class MemeGallery {
                 this.isAdmin = true;
                 sessionStorage.setItem('isAdmin', 'true');
                 this.updateAdminButtons();
+                this.render();
                 this.closeModal('adminModal');
 
                 // 如果有警告信息，显示警告 Toast

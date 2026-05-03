@@ -5,5 +5,4 @@ node_modules/
 dist/
 .cache/
 .wrangler/
-package-lock.json
 yarn.lock

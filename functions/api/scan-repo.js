@@ -1,20 +1,22 @@
+import { jsonResponse, requireAdmin } from '../_utils/auth.js';
+
 /**
  * Cloudflare Pages Functions - 扫描 GitHub 仓库图片文件
  * POST /api/scan-repo
  */
 export async function onRequestPost(context) {
   try {
+    const unauthorized = await requireAdmin(context);
+    if (unauthorized) return unauthorized;
+
     const { MEME_GALLERY_KV, GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH } = context.env;
 
     // 检查环境变量
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: '未配置 GitHub 存储，请在 Cloudflare Dashboard 中设置环境变量 GITHUB_TOKEN 和 GITHUB_REPO'
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: '未配置 GitHub 存储，请在 Cloudflare Dashboard 中设置环境变量 GITHUB_TOKEN 和 GITHUB_REPO'
+      }, 500);
     }
 
     const branch = GITHUB_BRANCH || 'main';
@@ -32,13 +34,10 @@ export async function onRequestPost(context) {
 
     if (!treeResponse.ok) {
       const errorData = await treeResponse.json();
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `无法访问仓库: ${errorData.message || '未知错误'}`
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({
+        success: false,
+        error: `无法访问仓库: ${errorData.message || '未知错误'}`
+      }, 500);
     }
 
     const treeData = await treeResponse.json();
@@ -115,24 +114,18 @@ export async function onRequestPost(context) {
     const updatedMemes = [...newMemes, ...preservedMemes];
     await MEME_GALLERY_KV.put('memes', JSON.stringify(updatedMemes));
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          total: foundImages.length,
-          new: newMemes.length,
-          existing: foundImages.length - newMemes.length,
-          removed: removedCount,
-          images: newMemes
-        }
-      }),
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: true,
+      data: {
+        total: foundImages.length,
+        new: newMemes.length,
+        existing: foundImages.length - newMemes.length,
+        removed: removedCount,
+        images: newMemes
+      }
+    });
   } catch (error) {
     console.error('Scan repo error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }

@@ -1,8 +1,10 @@
+import { jsonResponse, requireAdmin } from '../_utils/auth.js';
+
 /**
  * 友情链接存储
  * GET /api/friends         -> { success, data: Link[] }
  * POST /api/friends        -> body: { action: 'add'|'update'|'delete', ... }
- * 
+ *
  * Link: { id: number, name: string, url: string, icon?: string, addedAt: string }
  */
 export async function onRequestGet(context) {
@@ -10,19 +12,17 @@ export async function onRequestGet(context) {
     const { MEME_GALLERY_KV } = context.env;
     const json = await MEME_GALLERY_KV.get('friend_links');
     const links = json ? JSON.parse(json) : [];
-    return new Response(JSON.stringify({ success: true, data: links }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: true, data: links });
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }
 
 export async function onRequestPost(context) {
   try {
+    const unauthorized = await requireAdmin(context);
+    if (unauthorized) return unauthorized;
+
     const { MEME_GALLERY_KV } = context.env;
     const body = await context.request.json();
     const action = (body.action || '').toLowerCase();
@@ -34,7 +34,7 @@ export async function onRequestPost(context) {
       const name = (body.name || '').trim();
       const url = (body.url || '').trim();
       const icon = (body.icon || '').trim();
-      if (!name || !isHttpUrl(url)) {
+      if (!name || name.length > 80 || !isHttpUrl(url) || (icon && !isHttpUrl(icon))) {
         return badRequest('参数错误：需要 name 与有效 url');
       }
       const item = {
@@ -54,6 +54,9 @@ export async function onRequestPost(context) {
       const name = (body.name || '').trim();
       const url = (body.url || '').trim();
       const icon = (body.icon || '').trim();
+      if ((name && name.length > 80) || (url && !isHttpUrl(url)) || (icon && !isHttpUrl(icon))) {
+        return badRequest('参数错误');
+      }
       let updated = null;
       const next = list.map((x) => {
         if (Number(x.id) === id) {
@@ -76,10 +79,7 @@ export async function onRequestPost(context) {
 
     return badRequest('未知操作');
   } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }
 
@@ -91,15 +91,9 @@ function isHttpUrl(u) {
 }
 
 function ok(data) {
-  return new Response(JSON.stringify({ success: true, ...data }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ success: true, ...data });
 }
 
 function badRequest(message) {
-  return new Response(JSON.stringify({ success: false, error: message }), {
-    status: 400,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return jsonResponse({ success: false, error: message }, 400);
 }
-

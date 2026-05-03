@@ -1,9 +1,14 @@
+import { jsonResponse, requireAdmin } from '../../_utils/auth.js';
+
 /**
  * Cloudflare Pages Functions - 删除表情包
  * DELETE /api/memes/[id]
  */
 export async function onRequestDelete(context) {
   try {
+    const unauthorized = await requireAdmin(context);
+    if (unauthorized) return unauthorized;
+
     const { MEME_GALLERY_KV } = context.env;
     const id = context.params.id;
 
@@ -12,13 +17,7 @@ export async function onRequestDelete(context) {
 
     const index = memes.findIndex((meme) => meme.id === parseFloat(id));
     if (index === -1) {
-      return new Response(
-        JSON.stringify({ success: false, error: '表情包不存在' }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse({ success: false, error: '表情包不存在' }, 404);
     }
 
     const deleted = memes.splice(index, 1)[0];
@@ -26,16 +25,8 @@ export async function onRequestDelete(context) {
     // 保存到 KV
     await MEME_GALLERY_KV.put('memes', JSON.stringify(memes));
 
-    return new Response(JSON.stringify({ success: true, data: deleted }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: true, data: deleted });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }

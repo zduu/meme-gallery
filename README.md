@@ -29,7 +29,7 @@
 - **跨设备同步**：导出/导入 JSON 数据
 - **管理保护**：默认密钥 `meme-gallery-2025`，可自定义
 - **智能导出**：自动将上传图片转换为链接格式
-- **频率限制**：上传间隔 3 秒，防止 API 滥用
+- **频率限制**：游客上传严格限流，防止 API 滥用
 
 ### 📱 用户体验
 - **响应式设计**：完美适配桌面和移动端
@@ -103,7 +103,7 @@ HTML：<img src="https://example.com/image.gif">
 1. 点击 ➕ → 📤 上传图片
 2. 拖拽或选择图片（JPG/PNG/GIF/WebP，最大 10MB）
 3. 输入名称（可选）→ 添加
-4. **注意**：上传间隔最少 3 秒，防止 API 频率限制
+4. **注意**：游客上传限制为同 IP 至少 5 秒间隔、每小时最多 15 张、每天最多 30 张
 5. 图片会被上传到配置的 GitHub 仓库，自动归类到"仓库图片"分类
 
 ### 分类查看
@@ -136,8 +136,8 @@ HTML：<img src="https://example.com/image.gif">
 **导入/清空（需管理权限）**：
 1. 在前端页面点击 5 次 "🎨 Meme Gallery" 标题
 2. 输入管理密钥进行验证（默认密钥：`meme-gallery-2025`）
-3. 验证成功后显示导入和清空按钮
-4. 管理权限在当前会话期间有效（刷新页面后需重新验证）
+3. 验证成功后，服务端会签发 HttpOnly 管理员会话 Cookie
+4. 验证成功后显示导入、扫描、清空、删除、标签和友链管理入口
 
 ## 🧪 本地开发
 
@@ -167,14 +167,16 @@ python3 -m http.server 8000
 |------|------|------|------|
 | GET | `/api/memes` | 获取所有表情包 | 公开 |
 | POST | `/api/memes` | 添加表情包（链接） | 公开 |
-| POST | `/api/upload` | 上传图片到 GitHub | 公开（3秒频率限制） |
-| DELETE | `/api/memes/:id` | 删除表情包 | 公开 |
+| POST | `/api/upload` | 上传图片到 GitHub | 公开（游客严格限流） |
+| DELETE | `/api/memes/:id` | 删除表情包 | 需管理权限 |
 | GET | `/api/memes/search?q=关键词` | 搜索表情包 | 公开 |
 | GET | `/api/memes/export` | 导出数据 | 公开 |
 | POST | `/api/verify-key` | 验证管理密钥 | - |
 | POST | `/api/scan-repo` | 扫描仓库图片 | 需管理权限 |
 | POST | `/api/memes/import` | 导入数据 | 需管理权限 |
 | DELETE | `/api/memes/clear` | 清空所有 | 需管理权限 |
+| POST | `/api/memes/tags` | 更新标签/名称 | 需管理权限 |
+| POST | `/api/friends` | 添加/修改/删除友链 | 需管理权限 |
 
 ## 🐛 常见问题
 
@@ -248,7 +250,8 @@ python3 -m http.server 8000
 <summary><b>Q: 上传提示"上传过于频繁"？</b></summary>
 
 **A:** 为了保护 GitHub API，上传功能有频率限制：
-- 最小间隔：3 秒
+- 游客：同 IP 最小间隔 5 秒，每小时最多 15 张，每天最多 30 张
+- 管理员：同 IP 最小间隔 3 秒，每小时最多 120 张，每天最多 500 张
 - 如果触发限制，请等待提示的秒数后再试
 - 这是为了防止 GitHub API 滥用和触发更严格的限制
 </details>
@@ -326,9 +329,9 @@ meme-gallery/
 - 使用强随机密码作为 `ADMIN_KEY`（不要使用默认密钥）
 - 不要在公开场合分享 GitHub Token 和 ADMIN_KEY
 - 定期导出数据备份
-- 管理权限在会话期间有效（sessionStorage），页面刷新后需重新验证
+- 管理权限由服务端 HttpOnly 会话 Cookie 保护
 - 验证密钥通过 HTTPS 加密传输，不会在 URL 中暴露
-- 上传功能有频率限制（3秒/次），防止 API 滥用
+- 游客上传有严格频率限制，防止 API 滥用
 
 ## 🤝 贡献
 

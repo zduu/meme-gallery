@@ -1,3 +1,5 @@
+import { jsonResponse } from '../_utils/auth.js';
+
 /**
  * Cloudflare Pages Functions - 获取所有表情包
  * GET /api/memes
@@ -8,17 +10,9 @@ export async function onRequestGet(context) {
     const memesJson = await MEME_GALLERY_KV.get('memes');
     const memes = memesJson ? JSON.parse(memesJson) : [];
 
-    return new Response(JSON.stringify({ success: true, data: memes }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: true, data: memes });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }
 
@@ -29,16 +23,18 @@ export async function onRequestPost(context) {
   try {
     const { MEME_GALLERY_KV } = context.env;
     const body = await context.request.json();
-    const { url, name, source } = body;
+    const { url, name } = body;
 
-    if (!url) {
-      return new Response(
-        JSON.stringify({ success: false, error: '缺少图片链接' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+    if (!isHttpUrl(url)) {
+      return jsonResponse({ success: false, error: '缺少有效图片链接' }, 400);
+    }
+
+    const clientIP = context.request.headers.get('CF-Connecting-IP') || 'unknown';
+    const rateLimitKey = `add_ratelimit_${clientIP}`;
+    const now = Date.now();
+    const lastAddTime = await MEME_GALLERY_KV.get(rateLimitKey);
+    if (lastAddTime && now - parseInt(lastAddTime, 10) < 1000) {
+      return jsonResponse({ success: false, error: '添加过于频繁，请稍后再试' }, 429);
     }
 
     // 获取现有数据
@@ -48,22 +44,16 @@ export async function onRequestPost(context) {
     // 创建新表情包
     const newMeme = {
       id: Date.now() + Math.random(),
-      url: url,
-      name: name || generateDefaultName(url, memes.length),
-      source: source || 'link',  // 默认为 link
+      url,
+      name: normalizeName(name) || generateDefaultName(url, memes.length),
+      source: 'link',
       addedAt: new Date().toISOString(),
     };
 
     // 检查重复
     const exists = memes.some((meme) => meme.url === newMeme.url);
     if (exists) {
-      return new Response(
-        JSON.stringify({ success: false, error: '这个表情包已经存在了' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return jsonResponse({ success: false, error: '这个表情包已经存在了' }, 400);
     }
 
     // 添加到列表开头
@@ -71,18 +61,11 @@ export async function onRequestPost(context) {
 
     // 保存到 KV
     await MEME_GALLERY_KV.put('memes', JSON.stringify(memes));
+    await MEME_GALLERY_KV.put(rateLimitKey, now.toString(), { expirationTtl: 60 });
 
-    return new Response(JSON.stringify({ success: true, data: newMeme }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ success: true, data: newMeme });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return jsonResponse({ success: false, error: error.message }, 500);
   }
 }
 
@@ -95,4 +78,17 @@ function generateDefaultName(url, count) {
   } catch {
     return `表情包-${count + 1}`;
   }
+}
+
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value));
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function normalizeName(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 200) : '';
 }
